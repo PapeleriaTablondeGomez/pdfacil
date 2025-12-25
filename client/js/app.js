@@ -475,18 +475,79 @@ function updateToolOptions() {
         case 'organize':
             if (files.length > 0) {
                 toolOptions.innerHTML = `
-                    <div class="option-group">
-                        <label class="option-label">Acción</label>
-                        <select id="organizeAction" class="option-input">
-                            <option value="reorder">Reordenar páginas</option>
-                            <option value="delete">Eliminar páginas</option>
-                            <option value="rotate">Rotar páginas</option>
-                        </select>
+                    <div class="organize-action-selector">
+                        <button class="organize-action-btn active" data-action="reorder" id="organizeActionReorder">
+                            <span class="action-icon">🔄</span>
+                            <span class="action-text">Reordenar</span>
+                        </button>
+                        <button class="organize-action-btn" data-action="delete" id="organizeActionDelete">
+                            <span class="action-icon">🗑️</span>
+                            <span class="action-text">Eliminar</span>
+                        </button>
+                        <button class="organize-action-btn" data-action="rotate" id="organizeActionRotate">
+                            <span class="action-icon">↻</span>
+                            <span class="action-text">Rotar</span>
+                        </button>
                     </div>
-                    <div class="option-group" id="organizeDetails"></div>
+                    
+                    <!-- Contenido para Reordenar -->
+                    <div class="organize-content" id="organizeContentReorder">
+                        <div class="visual-organize-info">
+                            <p class="info-text">Arrastra y suelta las páginas en la vista previa para reordenarlas. El orden actual se aplicará al procesar.</p>
+                            <div class="organize-stats">
+                                <span class="stat-item">
+                                    <span class="stat-label">Orden actual:</span>
+                                    <span class="stat-value" id="currentOrderDisplay">Original</span>
+                                </span>
+                            </div>
+                            <div class="visual-actions">
+                                <button class="action-btn secondary" id="resetOrderBtn">Restaurar orden original</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Contenido para Eliminar -->
+                    <div class="organize-content hidden" id="organizeContentDelete">
+                        <div class="visual-delete-info">
+                            <p class="info-text">Haz clic en las páginas de la vista previa para marcarlas para eliminación.</p>
+                            <div class="delete-stats">
+                                <span class="stat-item">
+                                    <span class="stat-label">Páginas a eliminar:</span>
+                                    <span class="stat-value" id="organizeDeletedCount">0</span>
+                                </span>
+                                <span class="stat-item">
+                                    <span class="stat-label">Páginas restantes:</span>
+                                    <span class="stat-value" id="organizeRemainingCount">0</span>
+                                </span>
+                            </div>
+                            <div class="visual-actions">
+                                <button class="action-btn secondary" id="organizeClearDeletedBtn">Limpiar selección</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Contenido para Rotar -->
+                    <div class="organize-content hidden" id="organizeContentRotate">
+                        <div class="visual-rotate-info">
+                            <p class="info-text">Haz clic en los botones de rotar de cada página en la vista previa, o especifica páginas y ángulo.</p>
+                            <div class="option-group" style="margin-top: 15px;">
+                                <label class="option-label">Ángulo de rotación</label>
+                                <select id="rotateAngle" class="option-input">
+                                    <option value="90">90° (sentido horario)</option>
+                                    <option value="180">180°</option>
+                                    <option value="270">270° (sentido antihorario)</option>
+                                </select>
+                            </div>
+                            <div class="visual-actions" style="margin-top: 15px;">
+                                <button class="action-btn secondary" id="rotateAllBtn">Rotar todas las páginas</button>
+                                <button class="action-btn secondary" id="resetRotationsBtn">Restaurar rotaciones</button>
+                            </div>
+                        </div>
+                    </div>
                 `;
-                document.getElementById('organizeAction').addEventListener('change', updateOrganizeDetails);
-                updateOrganizeDetails();
+                
+                // Inicializar modo organize
+                initializeOrganizeMode();
             }
             break;
 
@@ -623,23 +684,135 @@ function updateToolOptions() {
 
         case 'extract-pages':
             toolOptions.innerHTML = `
-                <div class="option-group">
-                    <label class="option-label">Páginas a extraer (ej: 1,3,5-7)</label>
-                    <input type="text" id="pagesToExtract" class="option-input" placeholder="1,3,5-7">
-                    <p class="option-hint">Separa páginas con comas. Usa guiones para rangos.</p>
+                <div class="extract-mode-selector">
+                    <button class="extract-mode-btn active" data-mode="visual" id="extractModeVisual">
+                        <span class="mode-icon">👁️</span>
+                        <span class="mode-text">Visual</span>
+                    </button>
+                    <button class="extract-mode-btn" data-mode="ranges" id="extractModeRanges">
+                        <span class="mode-icon">📊</span>
+                        <span class="mode-text">Rangos</span>
+                    </button>
+                    <button class="extract-mode-btn" data-mode="pages" id="extractModePages">
+                        <span class="mode-icon">📄</span>
+                        <span class="mode-text">Páginas</span>
+                    </button>
+                </div>
+                
+                <!-- Contenido para modo Visual -->
+                <div class="extract-content" id="extractContentVisual">
+                    <div class="visual-extract-info">
+                        <p class="info-text">Haz clic en las páginas de la vista previa para seleccionarlas para extracción.</p>
+                        <div class="extract-stats">
+                            <span class="stat-item">
+                                <span class="stat-label">Páginas seleccionadas:</span>
+                                <span class="stat-value" id="selectedPagesCount">0</span>
+                            </span>
+                            <span class="stat-item">
+                                <span class="stat-label">Total de páginas:</span>
+                                <span class="stat-value" id="totalPagesCount">0</span>
+                            </span>
+                        </div>
+                        <div class="visual-actions">
+                            <button class="action-btn secondary" id="clearSelectedBtn">Limpiar selección</button>
+                            <button class="action-btn secondary" id="selectAllExtractBtn">Seleccionar todas</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Contenido para modo Rangos -->
+                <div class="extract-content hidden" id="extractContentRanges">
+                    <div class="ranges-container" id="extractRangesContainer">
+                        <!-- Los rangos se agregarán aquí dinámicamente -->
+                    </div>
+                    <button class="add-range-btn" id="addExtractRangeBtn">
+                        <span>+</span> Añadir Rango
+                    </button>
+                    <p class="option-hint">Especifica los rangos de páginas que deseas extraer</p>
+                </div>
+                
+                <!-- Contenido para modo Páginas -->
+                <div class="extract-content hidden" id="extractContentPages">
+                    <div class="option-group">
+                        <label class="option-label">Páginas a extraer</label>
+                        <input type="text" id="pagesToExtract" class="option-input" placeholder="1,3,5-7">
+                        <p class="option-hint">Separa páginas con comas. Usa guiones para rangos (ej: 1,3,5-7)</p>
+                    </div>
                 </div>
             `;
+            
+            // Inicializar modo extract
+            initializeExtractMode();
             break;
 
         case 'scan-to-pdf':
             if (files.length > 0) {
                 toolOptions.innerHTML = `
-                    <div class="option-group">
-                        <p style="color: var(--text-secondary);">
-                            Las imágenes se convertirán a un único PDF en el orden mostrado.
-                        </p>
+                    <div class="scan-options-container">
+                        <div class="option-group">
+                            <label class="option-label">Tamaño de página</label>
+                            <select id="scanPageSize" class="option-input">
+                                <option value="A4" selected>A4 (210 × 297 mm)</option>
+                                <option value="Letter">Letter (8.5 × 11 pulgadas)</option>
+                                <option value="Legal">Legal (8.5 × 14 pulgadas)</option>
+                                <option value="A3">A3 (297 × 420 mm)</option>
+                                <option value="A5">A5 (148 × 210 mm)</option>
+                                <option value="Custom">Personalizado</option>
+                            </select>
+                        </div>
+                        
+                        <div class="option-group hidden" id="customSizeGroup">
+                            <label class="option-label">Ancho (mm)</label>
+                            <input type="number" id="customWidth" class="option-input" placeholder="210" min="50" max="1000">
+                            <label class="option-label" style="margin-top: 10px;">Alto (mm)</label>
+                            <input type="number" id="customHeight" class="option-input" placeholder="297" min="50" max="1000">
+                        </div>
+                        
+                        <div class="option-group">
+                            <label class="option-label">Orientación</label>
+                            <select id="scanOrientation" class="option-input">
+                                <option value="portrait" selected>Vertical</option>
+                                <option value="landscape">Horizontal</option>
+                            </select>
+                        </div>
+                        
+                        <div class="option-group">
+                            <label class="option-label">Calidad de imagen</label>
+                            <select id="scanQuality" class="option-input">
+                                <option value="high">Alta (mejor calidad, archivo más grande)</option>
+                                <option value="medium" selected>Media (balanceado)</option>
+                                <option value="low">Baja (archivo más pequeño)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="option-group">
+                            <label class="option-label">Márgenes</label>
+                            <select id="scanMargins" class="option-input">
+                                <option value="none">Sin márgenes</option>
+                                <option value="small" selected>Pequeños</option>
+                                <option value="medium">Medianos</option>
+                                <option value="large">Grandes</option>
+                            </select>
+                        </div>
+                        
+                        <div class="visual-scan-info">
+                            <p class="info-text">
+                                📷 Las imágenes se convertirán a un único PDF en el orden mostrado en la vista previa.
+                                Puedes reorganizar las imágenes arrastrándolas antes de procesar.
+                            </p>
+                        </div>
                     </div>
                 `;
+                
+                // Event listener para tamaño personalizado
+                document.getElementById('scanPageSize')?.addEventListener('change', (e) => {
+                    const customGroup = document.getElementById('customSizeGroup');
+                    if (e.target.value === 'Custom') {
+                        customGroup?.classList.remove('hidden');
+                    } else {
+                        customGroup?.classList.add('hidden');
+                    }
+                });
             }
             break;
 
@@ -1093,12 +1266,50 @@ function getToolOptions() {
             }
             break;
         case 'extract-pages':
-            // Si hay vista previa activa, usar páginas seleccionadas
-            if (selectedPages.size > 0) {
-                const selectedArray = Array.from(selectedPages).sort((a, b) => a - b);
-                options.pagesToExtract = selectedArray.map(i => i + 1).join(',');
+            const activeExtractModeBtn = document.querySelector('.extract-mode-btn.active');
+            const activeExtractMode = activeExtractModeBtn?.dataset.mode || 'visual';
+            
+            if (activeExtractMode === 'visual') {
+                // Modo visual: usar páginas seleccionadas de la vista previa
+                if (selectedPages.size > 0) {
+                    const selectedArray = Array.from(selectedPages).sort((a, b) => a - b);
+                    options.pagesToExtract = selectedArray.map(i => i + 1).join(',');
+                } else {
+                    options.pagesToExtract = '';
+                }
+            } else if (activeExtractMode === 'ranges') {
+                // Modo rangos: convertir rangos a formato de páginas
+                const ranges = [];
+                document.querySelectorAll('#extractRangesContainer .range-item').forEach(rangeItem => {
+                    const from = parseInt(rangeItem.querySelector('.range-from')?.value) || 1;
+                    const to = parseInt(rangeItem.querySelector('.range-to')?.value) || 1;
+                    if (from > 0 && to > 0 && to >= from) {
+                        ranges.push({ from, to });
+                    }
+                });
+                if (ranges.length > 0) {
+                    // Convertir rangos a lista de páginas
+                    const pagesToExtract = [];
+                    ranges.forEach(range => {
+                        for (let i = range.from; i <= range.to; i++) {
+                            pagesToExtract.push(i);
+                        }
+                    });
+                    options.pagesToExtract = [...new Set(pagesToExtract)].sort((a, b) => a - b).join(',');
+                }
             } else {
-                options.pagesToExtract = document.getElementById('pagesToExtract')?.value;
+                // Modo páginas: usar input de texto
+                options.pagesToExtract = document.getElementById('pagesToExtract')?.value || '';
+            }
+            break;
+        case 'scan-to-pdf':
+            options.pageSize = document.getElementById('scanPageSize')?.value || 'A4';
+            options.orientation = document.getElementById('scanOrientation')?.value || 'portrait';
+            options.quality = document.getElementById('scanQuality')?.value || 'medium';
+            options.margins = document.getElementById('scanMargins')?.value || 'small';
+            if (options.pageSize === 'Custom') {
+                options.customWidth = document.getElementById('customWidth')?.value;
+                options.customHeight = document.getElementById('customHeight')?.value;
             }
             break;
         case 'pdf-to-images':
@@ -1362,6 +1573,18 @@ async function renderAllPDFsPreview() {
         if (currentTool === 'delete-pages') {
             updateDeleteStats();
             renderDeleteRanges();
+        }
+        
+        // Si estamos en modo extract-pages, actualizar estadísticas y rangos
+        if (currentTool === 'extract-pages') {
+            updateExtractStats();
+            renderExtractRanges();
+        }
+        
+        // Si estamos en modo organize, actualizar estadísticas
+        if (currentTool === 'organize') {
+            updateOrganizeOrderDisplay();
+            updateOrganizeDeleteStats();
         }
         
     } catch (error) {
@@ -1753,6 +1976,11 @@ function togglePageSelection(pageIndex) {
     }
     
     updatePreviewActions();
+    
+    // Si estamos en modo extract-pages, actualizar estadísticas
+    if (currentTool === 'extract-pages') {
+        updateExtractStats();
+    }
 }
 
 // Drag and Drop
@@ -2295,4 +2523,332 @@ function updateDeleteStats() {
 window.removeDeleteRange = removeDeleteRange;
 window.updateDeleteRange = updateDeleteRange;
 window.moveDeleteRange = moveDeleteRange;
+
+// ========== FUNCIONES PARA EXTRAER PÁGINAS MEJORADO ==========
+
+let extractRanges = []; // Almacena los rangos de extracción
+
+function initializeExtractMode() {
+    // Inicializar con modo Visual por defecto
+    extractRanges = [];
+    renderExtractRanges();
+    updateExtractStats();
+    
+    // Event listeners para cambiar de modo
+    document.querySelectorAll('.extract-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.dataset.mode;
+            switchExtractMode(mode);
+        });
+    });
+    
+    // Botón para agregar rango
+    document.getElementById('addExtractRangeBtn')?.addEventListener('click', () => {
+        addExtractRange();
+    });
+    
+    // Botones de acciones visuales
+    document.getElementById('clearSelectedBtn')?.addEventListener('click', () => {
+        selectedPages.clear();
+        updateExtractVisualState();
+        updateExtractStats();
+    });
+    
+    document.getElementById('selectAllExtractBtn')?.addEventListener('click', () => {
+        pdfPages.forEach((_, index) => {
+            if (!deletedPages.has(index)) {
+                selectedPages.add(index);
+            }
+        });
+        updateExtractVisualState();
+        updateExtractStats();
+    });
+}
+
+function switchExtractMode(mode) {
+    // Actualizar botones de modo
+    document.querySelectorAll('.extract-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+    
+    // Mostrar/ocultar contenido según el modo
+    document.getElementById('extractContentVisual')?.classList.toggle('hidden', mode !== 'visual');
+    document.getElementById('extractContentRanges')?.classList.toggle('hidden', mode !== 'ranges');
+    document.getElementById('extractContentPages')?.classList.toggle('hidden', mode !== 'pages');
+    
+    // Si cambiamos a modo visual, actualizar el estado visual
+    if (mode === 'visual') {
+        updateExtractVisualState();
+        updateExtractStats();
+    }
+}
+
+function renderExtractRanges() {
+    const container = document.getElementById('extractRangesContainer');
+    if (!container) return;
+    
+    // Obtener número total de páginas del primer PDF si está disponible
+    let totalPages = 1;
+    if (files.length > 0 && pdfDocs[0]) {
+        totalPages = pdfDocs[0].numPages || 1;
+    } else if (pdfPages.length > 0) {
+        const maxPage = Math.max(...pdfPages.map(p => p.pageNum));
+        totalPages = maxPage || 1;
+    }
+    
+    container.innerHTML = '';
+    
+    if (extractRanges.length === 0) {
+        extractRanges = [{ from: 1, to: 1 }];
+    }
+    
+    extractRanges.forEach((range, index) => {
+        const rangeItem = document.createElement('div');
+        rangeItem.className = 'range-item';
+        rangeItem.dataset.rangeIndex = index;
+        
+        const fromValue = Math.min(Math.max(1, range.from), totalPages);
+        const toValue = Math.min(Math.max(fromValue, range.to), totalPages);
+        
+        rangeItem.innerHTML = `
+            <div class="range-header">
+                <div class="range-move-buttons">
+                    <button class="range-move-btn" onclick="moveExtractRange(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>▲</button>
+                    <button class="range-move-btn" onclick="moveExtractRange(${index}, 'down')" ${index === extractRanges.length - 1 ? 'disabled' : ''}>▼</button>
+                </div>
+                <span class="range-title">Rango ${index + 1}</span>
+                <button class="range-delete-btn" onclick="removeExtractRange(${index})">✗</button>
+            </div>
+            <div class="range-inputs">
+                <div class="range-input-group">
+                    <label>de la página</label>
+                    <input type="number" class="range-from" value="${fromValue}" min="1" max="${totalPages}" onchange="updateExtractRange(${index}, 'from', this.value)">
+                </div>
+                <div class="range-input-group">
+                    <label>a</label>
+                    <input type="number" class="range-to" value="${toValue}" min="1" max="${totalPages}" onchange="updateExtractRange(${index}, 'to', this.value)">
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(rangeItem);
+    });
+}
+
+function addExtractRange() {
+    let totalPages = 1;
+    if (files.length > 0 && pdfDocs[0]) {
+        totalPages = pdfDocs[0].numPages || 1;
+    } else if (pdfPages.length > 0) {
+        const maxPage = Math.max(...pdfPages.map(p => p.pageNum));
+        totalPages = maxPage || 1;
+    }
+    
+    const lastRange = extractRanges[extractRanges.length - 1];
+    const nextFrom = lastRange ? lastRange.to + 1 : 1;
+    
+    extractRanges.push({ from: nextFrom, to: Math.min(nextFrom, totalPages) });
+    renderExtractRanges();
+}
+
+function removeExtractRange(index) {
+    if (extractRanges.length > 1) {
+        extractRanges.splice(index, 1);
+        renderExtractRanges();
+    }
+}
+
+function updateExtractRange(index, type, value) {
+    if (extractRanges[index]) {
+        const numValue = parseInt(value) || 1;
+        if (type === 'from') {
+            extractRanges[index].from = numValue;
+            if (extractRanges[index].to < numValue) {
+                extractRanges[index].to = numValue;
+                const rangeItem = document.querySelector(`#extractRangesContainer [data-range-index="${index}"]`);
+                if (rangeItem) {
+                    rangeItem.querySelector('.range-to').value = numValue;
+                }
+            }
+        } else {
+            extractRanges[index].to = numValue;
+            if (extractRanges[index].from > numValue) {
+                extractRanges[index].from = numValue;
+                const rangeItem = document.querySelector(`#extractRangesContainer [data-range-index="${index}"]`);
+                if (rangeItem) {
+                    rangeItem.querySelector('.range-from').value = numValue;
+                }
+            }
+        }
+    }
+}
+
+function moveExtractRange(index, direction) {
+    if (direction === 'up' && index > 0) {
+        [extractRanges[index], extractRanges[index - 1]] = [extractRanges[index - 1], extractRanges[index]];
+        renderExtractRanges();
+    } else if (direction === 'down' && index < extractRanges.length - 1) {
+        [extractRanges[index], extractRanges[index + 1]] = [extractRanges[index + 1], extractRanges[index]];
+        renderExtractRanges();
+    }
+}
+
+function updateExtractVisualState() {
+    // Actualizar el estado visual de las páginas seleccionadas
+    pdfPages.forEach((_, index) => {
+        const pageItem = document.querySelector(`[data-page-index="${index}"]`);
+        if (pageItem) {
+            if (selectedPages.has(index)) {
+                pageItem.classList.add('selected');
+            } else {
+                pageItem.classList.remove('selected');
+            }
+        }
+    });
+}
+
+function updateExtractStats() {
+    const selectedCount = selectedPages.size;
+    const totalCount = pdfPages.length;
+    
+    const selectedCountEl = document.getElementById('selectedPagesCount');
+    const totalCountEl = document.getElementById('totalPagesCount');
+    
+    if (selectedCountEl) {
+        selectedCountEl.textContent = selectedCount;
+        selectedCountEl.style.color = selectedCount > 0 ? 'var(--primary-color)' : 'var(--text-secondary)';
+    }
+    
+    if (totalCountEl) {
+        totalCountEl.textContent = totalCount;
+    }
+}
+
+// Hacer funciones globales para los onclick
+window.removeExtractRange = removeExtractRange;
+window.updateExtractRange = updateExtractRange;
+window.moveExtractRange = moveExtractRange;
+
+// ========== FUNCIONES PARA ORGANIZAR PÁGINAS MEJORADO ==========
+
+function initializeOrganizeMode() {
+    // Event listeners para cambiar de acción
+    document.querySelectorAll('.organize-action-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const action = btn.dataset.action;
+            switchOrganizeAction(action);
+        });
+    });
+    
+    // Botones de acciones
+    document.getElementById('resetOrderBtn')?.addEventListener('click', () => {
+        // Restaurar orden original (no hacer nada, el orden ya está en fileOrder)
+        updateOrganizeOrderDisplay();
+    });
+    
+    document.getElementById('organizeClearDeletedBtn')?.addEventListener('click', () => {
+        deletedPages.clear();
+        updateOrganizeDeleteVisualState();
+        updateOrganizeDeleteStats();
+    });
+    
+    document.getElementById('rotateAllBtn')?.addEventListener('click', () => {
+        const angle = parseInt(document.getElementById('rotateAngle')?.value || '90');
+        pdfPages.forEach((_, index) => {
+            if (!deletedPages.has(index)) {
+                rotatePage(index);
+                // Aplicar múltiples veces si es necesario
+                const currentRotation = pageRotations[index] || 0;
+                const targetRotation = angle;
+                const rotationsNeeded = (targetRotation - currentRotation) / 90;
+                for (let i = 0; i < rotationsNeeded; i++) {
+                    rotatePage(index);
+                }
+            }
+        });
+        updatePreviewActions();
+    });
+    
+    document.getElementById('resetRotationsBtn')?.addEventListener('click', () => {
+        pageRotations = {};
+        pdfPages.forEach((_, index) => {
+            const pageItem = document.querySelector(`[data-page-index="${index}"]`);
+            if (pageItem) {
+                pageItem.classList.remove('rotated');
+                const canvas = pageItem.querySelector('canvas');
+                if (canvas) canvas.style.transform = 'rotate(0deg)';
+                const rotationIndicator = pageItem.querySelector('.page-rotation-indicator');
+                if (rotationIndicator) rotationIndicator.textContent = '0°';
+            }
+        });
+        updatePreviewActions();
+    });
+    
+    // Inicializar estadísticas
+    updateOrganizeOrderDisplay();
+    updateOrganizeDeleteStats();
+}
+
+function switchOrganizeAction(action) {
+    // Actualizar botones de acción
+    document.querySelectorAll('.organize-action-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.action === action);
+    });
+    
+    // Mostrar/ocultar contenido según la acción
+    document.getElementById('organizeContentReorder')?.classList.toggle('hidden', action !== 'reorder');
+    document.getElementById('organizeContentDelete')?.classList.toggle('hidden', action !== 'delete');
+    document.getElementById('organizeContentRotate')?.classList.toggle('hidden', action !== 'rotate');
+    
+    // Actualizar estadísticas según la acción
+    if (action === 'reorder') {
+        updateOrganizeOrderDisplay();
+    } else if (action === 'delete') {
+        updateOrganizeDeleteVisualState();
+        updateOrganizeDeleteStats();
+    }
+}
+
+function updateOrganizeOrderDisplay() {
+    const orderDisplay = document.getElementById('currentOrderDisplay');
+    if (orderDisplay) {
+        const currentOrder = pdfPages
+            .map((_, index) => index + 1)
+            .filter((_, index) => !deletedPages.has(index))
+            .join(', ');
+        orderDisplay.textContent = currentOrder || 'Original';
+    }
+}
+
+function updateOrganizeDeleteVisualState() {
+    pdfPages.forEach((_, index) => {
+        const pageItem = document.querySelector(`[data-page-index="${index}"]`);
+        if (pageItem) {
+            if (deletedPages.has(index)) {
+                pageItem.classList.add('deleted');
+            } else {
+                pageItem.classList.remove('deleted');
+            }
+        }
+    });
+}
+
+function updateOrganizeDeleteStats() {
+    const deletedCount = deletedPages.size;
+    const totalCount = pdfPages.length;
+    const remainingCount = totalCount - deletedCount;
+    
+    const deletedCountEl = document.getElementById('organizeDeletedCount');
+    const remainingCountEl = document.getElementById('organizeRemainingCount');
+    
+    if (deletedCountEl) {
+        deletedCountEl.textContent = deletedCount;
+        deletedCountEl.style.color = deletedCount > 0 ? 'var(--danger-color)' : 'var(--text-secondary)';
+    }
+    
+    if (remainingCountEl) {
+        remainingCountEl.textContent = remainingCount;
+        remainingCountEl.style.color = remainingCount > 0 ? 'var(--success-color)' : 'var(--danger-color)';
+    }
+}
 
