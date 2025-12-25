@@ -141,6 +141,7 @@ function initializeToolButtons() {
             pdfDoc = null;
             pdfPreviewContainer.classList.add('hidden');
             pagesGrid.innerHTML = '';
+            fileInput.value = ''; // Limpiar el input para permitir subir el mismo archivo de nuevo
             renderFilesList();
             updateToolOptions();
             resetUI();
@@ -167,16 +168,22 @@ function handleDragLeave(e) {
     dropZone.classList.remove('dragover');
 }
 
-function handleDrop(e) {
+async function handleDrop(e) {
     e.preventDefault();
     dropZone.classList.remove('dragover');
     const droppedFiles = Array.from(e.dataTransfer.files);
-    addFiles(droppedFiles);
+    if (droppedFiles.length > 0) {
+        await addFiles(droppedFiles);
+    }
 }
 
 function handleFileSelect(e) {
     const selectedFiles = Array.from(e.target.files);
-    addFiles(selectedFiles);
+    if (selectedFiles.length > 0) {
+        addFiles(selectedFiles);
+        // Limpiar el input después de procesar para permitir subir el mismo archivo de nuevo
+        e.target.value = '';
+    }
 }
 
 async function addFiles(newFiles) {
@@ -1017,6 +1024,14 @@ if (typeof pdfjsLib !== 'undefined') {
 // Renderizar vista previa de PDF
 async function renderPDFPreview(file, fileIndex) {
     try {
+        // Limpiar vista previa anterior si existe
+        pagesGrid.innerHTML = '';
+        pdfPages = [];
+        pageRotations = {};
+        deletedPages.clear();
+        selectedPages.clear();
+        pdfDoc = null;
+        
         const arrayBuffer = await file.arrayBuffer();
         const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
         const pdf = await loadingTask.promise;
@@ -1026,13 +1041,6 @@ async function renderPDFPreview(file, fileIndex) {
         
         // Mostrar contenedor de vista previa
         pdfPreviewContainer.classList.remove('hidden');
-        pagesGrid.innerHTML = '';
-        
-        // Resetear estados
-        pdfPages = [];
-        pageRotations = {};
-        deletedPages.clear();
-        selectedPages.clear();
         
         // Renderizar cada página
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
