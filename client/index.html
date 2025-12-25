@@ -13,39 +13,161 @@
             <p class="subtitle">Herramientas profesionales para manipular archivos PDF</p>
         </header>
 
-        <div class="tool-selector">
-            <button class="tool-btn active" data-tool="merge">
-                <span class="icon">🔗</span>
-                <span>Unir PDFs</span>
-            </button>
-            <button class="tool-btn" data-tool="split">
-                <span class="icon">✂️</span>
-                <span>Dividir PDF</span>
-            </button>
-            <button class="tool-btn" data-tool="organize">
-                <span class="icon">📋</span>
-                <span>Organizar PDF</span>
-            </button>
-            <button class="tool-btn" data-tool="images-to-pdf">
-                <span class="icon">🖼️</span>
-                <span>Imágenes → PDF</span>
-            </button>
-            <button class="tool-btn" data-tool="pdf-to-images">
-                <span class="icon">📸</span>
-                <span>PDF → Imágenes</span>
-            </button>
-            <button class="tool-btn" data-tool="protect">
-                <span class="icon">🔒</span>
-                <span>Proteger PDF</span>
-            </button>
-            <button class="tool-btn" data-tool="unlock">
-                <span class="icon">🔓</span>
-                <span>Desbloquear PDF</span>
-            </button>
-            <button class="tool-btn" data-tool="compress">
-                <span class="icon">🗜️</span>
-                <span>Comprimir PDF</span>
-            </button>
+        <!-- Selector de categorías -->
+        <div class="category-selector" id="categorySelector">
+            <button class="category-btn active" data-category="organize">Organizar PDF</button>
+            <button class="category-btn" data-category="optimize">Optimizar PDF</button>
+            <button class="category-btn" data-category="convert-to">Convertir a PDF</button>
+            <button class="category-btn" data-category="convert-from">Convertir desde PDF</button>
+            <button class="category-btn" data-category="edit">Editar PDF</button>
+            <button class="category-btn" data-category="security">Seguridad del PDF</button>
+        </div>
+
+        <!-- Herramientas por categoría -->
+        <div class="tools-container">
+            <!-- Organizar PDF -->
+            <div class="tool-category active" data-category="organize">
+                <div class="tool-grid">
+                    <button class="tool-btn" data-tool="merge">
+                        <span class="icon">🔗</span>
+                        <span>Unir PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="split">
+                        <span class="icon">✂️</span>
+                        <span>Dividir PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="delete-pages">
+                        <span class="icon">🗑️</span>
+                        <span>Eliminar páginas</span>
+                    </button>
+                    <button class="tool-btn" data-tool="extract-pages">
+                        <span class="icon">📤</span>
+                        <span>Extraer páginas</span>
+                    </button>
+                    <button class="tool-btn" data-tool="organize">
+                        <span class="icon">📋</span>
+                        <span>Organizar PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="scan-to-pdf">
+                        <span class="icon">📷</span>
+                        <span>Escanear a PDF</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Optimizar PDF -->
+            <div class="tool-category" data-category="optimize">
+                <div class="tool-grid">
+                    <button class="tool-btn" data-tool="compress">
+                        <span class="icon">🗜️</span>
+                        <span>Comprimir PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="repair">
+                        <span class="icon">🔧</span>
+                        <span>Reparar PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="ocr">
+                        <span class="icon">👁️</span>
+                        <span>OCR PDF</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Convertir a PDF -->
+            <div class="tool-category" data-category="convert-to">
+                <div class="tool-grid">
+                    <button class="tool-btn" data-tool="images-to-pdf">
+                        <span class="icon">🖼️</span>
+                        <span>JPG a PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="word-to-pdf">
+                        <span class="icon">📝</span>
+                        <span>Word a PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="ppt-to-pdf">
+                        <span class="icon">📊</span>
+                        <span>PowerPoint a PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="excel-to-pdf">
+                        <span class="icon">📈</span>
+                        <span>Excel a PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="html-to-pdf">
+                        <span class="icon">🌐</span>
+                        <span>HTML a PDF</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Convertir desde PDF -->
+            <div class="tool-category" data-category="convert-from">
+                <div class="tool-grid">
+                    <button class="tool-btn" data-tool="pdf-to-images">
+                        <span class="icon">📸</span>
+                        <span>PDF a JPG</span>
+                    </button>
+                    <button class="tool-btn" data-tool="pdf-to-word">
+                        <span class="icon">📝</span>
+                        <span>PDF a Word</span>
+                    </button>
+                    <button class="tool-btn" data-tool="pdf-to-ppt">
+                        <span class="icon">📊</span>
+                        <span>PDF a PowerPoint</span>
+                    </button>
+                    <button class="tool-btn" data-tool="pdf-to-excel">
+                        <span class="icon">📈</span>
+                        <span>PDF a Excel</span>
+                    </button>
+                    <button class="tool-btn" data-tool="pdf-to-pdfa">
+                        <span class="icon">📄</span>
+                        <span>PDF a PDF/A</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Editar PDF -->
+            <div class="tool-category" data-category="edit">
+                <div class="tool-grid">
+                    <button class="tool-btn" data-tool="rotate">
+                        <span class="icon">🔄</span>
+                        <span>Rotar PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="page-numbers">
+                        <span class="icon">🔢</span>
+                        <span>Agregar números de página</span>
+                    </button>
+                    <button class="tool-btn" data-tool="watermark">
+                        <span class="icon">💧</span>
+                        <span>Agregar marca de agua</span>
+                    </button>
+                    <button class="tool-btn" data-tool="crop">
+                        <span class="icon">✂️</span>
+                        <span>Recortar PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="edit-text">
+                        <span class="icon">✏️</span>
+                        <span>Editar PDF</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Seguridad del PDF -->
+            <div class="tool-category" data-category="security">
+                <div class="tool-grid">
+                    <button class="tool-btn" data-tool="unlock">
+                        <span class="icon">🔓</span>
+                        <span>Desbloquear PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="protect">
+                        <span class="icon">🔒</span>
+                        <span>Proteger PDF</span>
+                    </button>
+                    <button class="tool-btn" data-tool="sign">
+                        <span class="icon">✍️</span>
+                        <span>Firmar PDF</span>
+                    </button>
+                </div>
+            </div>
         </div>
 
         <main>
@@ -60,7 +182,7 @@
                         </svg>
                         <p class="drop-text">Arrastra archivos aquí o haz clic para seleccionar</p>
                         <p class="drop-hint">Máximo 50MB por archivo</p>
-                        <input type="file" id="fileInput" multiple accept=".pdf,.jpg,.jpeg,.png" hidden>
+                        <input type="file" id="fileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.html,.htm" hidden>
                     </div>
                 </div>
 
@@ -116,4 +238,3 @@
     <script src="js/app.js"></script>
 </body>
 </html>
-

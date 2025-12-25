@@ -13,6 +13,11 @@ const pdfToImagesRoutes = require('./routes/pdfToImages');
 const protectRoutes = require('./routes/protect');
 const unlockRoutes = require('./routes/unlock');
 const compressRoutes = require('./routes/compress');
+const deletePagesRoutes = require('./routes/deletePages');
+const extractPagesRoutes = require('./routes/extractPages');
+const pageNumbersRoutes = require('./routes/pageNumbers');
+const watermarkRoutes = require('./routes/watermark');
+const stubRoutes = require('./routes/stubRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -117,6 +122,25 @@ app.use('/api/pdf-to-images', pdfToImagesRoutes);
 app.use('/api/protect', protectRoutes);
 app.use('/api/unlock', unlockRoutes);
 app.use('/api/compress', compressRoutes);
+app.use('/api/delete-pages', deletePagesRoutes);
+app.use('/api/extract-pages', extractPagesRoutes);
+app.use('/api/scan-to-pdf', imagesToPdfRoutes); // Reutiliza la misma lógica
+app.use('/api/rotate', organizeRoutes); // Reutiliza organize con acción rotate
+app.use('/api/page-numbers', pageNumbersRoutes);
+app.use('/api/watermark', watermarkRoutes);
+app.use('/api/crop', organizeRoutes); // Por ahora usa organize, se puede mejorar
+app.use('/api/sign', watermarkRoutes); // Reutiliza watermark para firma visual
+app.use('/api/ocr', stubRoutes);
+app.use('/api/repair', stubRoutes);
+app.use('/api/word-to-pdf', stubRoutes);
+app.use('/api/ppt-to-pdf', stubRoutes);
+app.use('/api/excel-to-pdf', stubRoutes);
+app.use('/api/html-to-pdf', stubRoutes);
+app.use('/api/pdf-to-word', stubRoutes);
+app.use('/api/pdf-to-ppt', stubRoutes);
+app.use('/api/pdf-to-excel', stubRoutes);
+app.use('/api/pdf-to-pdfa', stubRoutes);
+app.use('/api/edit-text', stubRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
