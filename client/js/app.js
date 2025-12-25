@@ -215,7 +215,7 @@ async function handleDrop(e) {
 function handleFileSelect(e) {
     const selectedFiles = Array.from(e.target.files);
     if (selectedFiles.length > 0) {
-        addFiles(selectedFiles);
+    addFiles(selectedFiles);
         // Limpiar el input después de procesar para permitir subir el mismo archivo de nuevo
         e.target.value = '';
     }
@@ -402,11 +402,41 @@ function updateToolOptions() {
     switch (currentTool) {
         case 'merge':
             if (files.length > 0) {
+                const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+                const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+                const totalPages = pdfPages.length;
+                
                 toolOptions.innerHTML = `
-                    <div class="option-group">
-                        <p style="color: var(--text-secondary);">
-                            Los PDFs se unirán en el orden mostrado. Puedes arrastrar los archivos para reordenarlos.
-                        </p>
+                    <div class="merge-info-card">
+                        <div class="merge-stats-grid">
+                            <div class="merge-stat">
+                                <div class="stat-icon">📄</div>
+                                <div class="stat-info">
+                                    <div class="stat-label">Archivos</div>
+                                    <div class="stat-value">${files.length}</div>
+                                </div>
+                            </div>
+                            <div class="merge-stat">
+                                <div class="stat-icon">📑</div>
+                                <div class="stat-info">
+                                    <div class="stat-label">Páginas totales</div>
+                                    <div class="stat-value">${totalPages || 'Calculando...'}</div>
+                                </div>
+                            </div>
+                            <div class="merge-stat">
+                                <div class="stat-icon">💾</div>
+                                <div class="stat-info">
+                                    <div class="stat-label">Tamaño total</div>
+                                    <div class="stat-value">${totalSizeMB} MB</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="merge-instructions">
+                            <p class="info-text">
+                                📋 Los PDFs se unirán en el orden mostrado en la vista previa.
+                                Puedes arrastrar y soltar las páginas para reordenarlas antes de procesar.
+                            </p>
+                        </div>
                     </div>
                 `;
             }
@@ -450,9 +480,9 @@ function updateToolOptions() {
                 
                 <!-- Contenido para modo Páginas -->
                 <div class="split-content hidden" id="splitContentPages">
-                    <div class="option-group">
+                <div class="option-group">
                         <label class="option-label">Páginas específicas</label>
-                        <input type="text" id="splitPages" class="option-input" placeholder="1,3,5-7">
+                    <input type="text" id="splitPages" class="option-input" placeholder="1,3,5-7">
                         <p class="option-hint">Separa páginas con comas. Usa guiones para rangos (ej: 1,3,5-7)</p>
                     </div>
                 </div>
@@ -536,8 +566,8 @@ function updateToolOptions() {
                                     <option value="90">90° (sentido horario)</option>
                                     <option value="180">180°</option>
                                     <option value="270">270° (sentido antihorario)</option>
-                                </select>
-                            </div>
+                        </select>
+                    </div>
                             <div class="visual-actions" style="margin-top: 15px;">
                                 <button class="action-btn secondary" id="rotateAllBtn">Rotar todas las páginas</button>
                                 <button class="action-btn secondary" id="resetRotationsBtn">Restaurar rotaciones</button>
@@ -553,56 +583,227 @@ function updateToolOptions() {
 
         case 'images-to-pdf':
             if (files.length > 0) {
+                const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+                const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+                
                 toolOptions.innerHTML = `
+                    <div class="images-to-pdf-info">
+                        <div class="images-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Imágenes:</span>
+                                <span class="stat-value">${files.length}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Tamaño total:</span>
+                                <span class="stat-value">${totalSizeMB} MB</span>
+                            </div>
+                        </div>
                     <div class="option-group">
-                        <p style="color: var(--text-secondary);">
-                            Las imágenes se convertirán a un único PDF en el orden mostrado.
-                        </p>
+                            <label class="option-label">Tamaño de página</label>
+                            <select id="imagesPageSize" class="option-input">
+                                <option value="A4" selected>A4 (210 × 297 mm)</option>
+                                <option value="Letter">Letter (8.5 × 11 pulgadas)</option>
+                                <option value="Legal">Legal (8.5 × 14 pulgadas)</option>
+                                <option value="A3">A3 (297 × 420 mm)</option>
+                                <option value="A5">A5 (148 × 210 mm)</option>
+                                <option value="Fit">Ajustar a imagen</option>
+                            </select>
+                        </div>
+                        <div class="option-group">
+                            <label class="option-label">Orientación</label>
+                            <select id="imagesOrientation" class="option-input">
+                                <option value="portrait" selected>Vertical</option>
+                                <option value="landscape">Horizontal</option>
+                            </select>
+                        </div>
+                        <div class="visual-info">
+                            <p class="info-text">
+                                📷 Las imágenes se convertirán a un único PDF en el orden mostrado.
+                                Puedes reorganizar las imágenes arrastrándolas antes de procesar.
+                            </p>
+                        </div>
                     </div>
                 `;
             }
             break;
 
         case 'pdf-to-images':
+            const pdfPagesCount = pdfPages.length || (files.length > 0 ? 'Calculando...' : 0);
+            
             toolOptions.innerHTML = `
+                <div class="pdf-to-images-config">
+                    <div class="conversion-info">
+                        <div class="info-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Páginas:</span>
+                                <span class="stat-value">${pdfPagesCount}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="format-selector-section">
+                        <label class="section-label">Formato de salida</label>
+                        <div class="format-selector-images">
+                            <button class="format-image-btn active" data-format="jpg">
+                                <span class="format-icon">🖼️</span>
+                                <span class="format-name">JPG</span>
+                                <span class="format-desc">Mejor compresión</span>
+                            </button>
+                            <button class="format-image-btn" data-format="png">
+                                <span class="format-icon">🖼️</span>
+                                <span class="format-name">PNG</span>
+                                <span class="format-desc">Mejor calidad</span>
+                            </button>
+                        </div>
+                        <input type="hidden" id="imageFormat" value="jpg">
+                    </div>
+                    
+                    <div class="quality-section">
                 <div class="option-group">
-                    <label class="option-label">Formato de salida</label>
-                    <select id="imageFormat" class="option-input">
-                        <option value="jpg">JPG</option>
-                        <option value="png">PNG</option>
+                            <label class="option-label">Calidad de imagen</label>
+                            <input type="range" id="imageQuality" class="option-input" min="1" max="100" value="90">
+                            <div class="quality-display">
+                                <span class="quality-label">Calidad:</span>
+                                <span class="quality-value" id="qualityValue">90</span>
+                                <span class="quality-percent">%</span>
+                            </div>
+                            <div class="quality-presets">
+                                <button class="quality-preset-btn" data-quality="60">Baja</button>
+                                <button class="quality-preset-btn active" data-quality="90">Media</button>
+                                <button class="quality-preset-btn" data-quality="100">Alta</button>
+                            </div>
+                        </div>
+                        <div class="option-group">
+                            <label class="option-label">Resolución (DPI)</label>
+                            <select id="imageDPI" class="option-input">
+                                <option value="150">150 DPI (Web)</option>
+                                <option value="300" selected>300 DPI (Impresión)</option>
+                                <option value="600">600 DPI (Alta calidad)</option>
                     </select>
                 </div>
+                    </div>
+                    
+                    <div class="pages-section">
                 <div class="option-group">
-                    <label class="option-label">Calidad (solo JPG)</label>
-                    <input type="range" id="imageQuality" class="option-input" min="1" max="100" value="90">
-                    <p class="option-hint">Calidad: <span id="qualityValue">90</span>%</p>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="convertAllPages" checked>
+                                <span>Convertir todas las páginas</span>
+                            </label>
+                        </div>
+                        <div class="option-group hidden" id="pagesRangeGroup">
+                            <label class="option-label">Rango de páginas</label>
+                            <input type="text" id="pagesRange" class="option-input" placeholder="Ej: 1-5, 10, 15-20">
+                            <p class="option-hint">Especifica qué páginas convertir (deja vacío para todas)</p>
+                        </div>
+                    </div>
                 </div>
             `;
+            
+            // Inicializar pdf-to-images
+            initializePdfToImagesMode();
             document.getElementById('imageQuality').addEventListener('input', (e) => {
                 document.getElementById('qualityValue').textContent = e.target.value;
+            });
+            document.getElementById('convertAllPages').addEventListener('change', (e) => {
+                const pagesRangeGroup = document.getElementById('pagesRangeGroup');
+                if (e.target.checked) {
+                    pagesRangeGroup?.classList.add('hidden');
+                } else {
+                    pagesRangeGroup?.classList.remove('hidden');
+                }
             });
             break;
 
         case 'protect':
             toolOptions.innerHTML = `
+                <div class="protect-config">
+                    <div class="protect-header">
+                        <div class="protect-icon">🔒</div>
+                        <div class="protect-title">Proteger PDF con Contraseña</div>
+                    </div>
+                    
+                    <div class="password-section">
                 <div class="option-group">
                     <label class="option-label">Contraseña</label>
-                    <input type="password" id="password" class="option-input" placeholder="Ingresa una contraseña">
+                            <div class="password-input-wrapper">
+                                <input type="password" id="password" class="option-input" placeholder="Ingresa una contraseña segura">
+                                <button type="button" class="toggle-password" id="togglePassword">
+                                    <span class="eye-icon">👁️</span>
+                                </button>
+                            </div>
+                            <div class="password-strength" id="passwordStrength">
+                                <div class="strength-bar"></div>
+                                <span class="strength-text">Seguridad: <span id="strengthText">-</span></span>
+                            </div>
                 </div>
                 <div class="option-group">
                     <label class="option-label">Confirmar contraseña</label>
+                            <div class="password-input-wrapper">
                     <input type="password" id="passwordConfirm" class="option-input" placeholder="Confirma la contraseña">
+                                <button type="button" class="toggle-password" id="togglePasswordConfirm">
+                                    <span class="eye-icon">👁️</span>
+                                </button>
+                            </div>
+                            <div class="password-match" id="passwordMatch"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="permissions-section">
+                        <label class="section-label">Permisos</label>
+                        <div class="permissions-list">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="allowPrint" checked>
+                                <span>Permitir impresión</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="allowCopy" checked>
+                                <span>Permitir copiar texto</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="allowModify" checked>
+                                <span>Permitir modificar</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="allowAnnotate" checked>
+                                <span>Permitir comentarios</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
             `;
+            
+            // Inicializar protect
+            initializeProtectMode();
             break;
 
         case 'unlock':
             toolOptions.innerHTML = `
+                <div class="unlock-config">
+                    <div class="unlock-header">
+                        <div class="unlock-icon">🔓</div>
+                        <div class="unlock-title">Desbloquear PDF</div>
+                    </div>
                 <div class="option-group">
                     <label class="option-label">Contraseña del PDF</label>
-                    <input type="password" id="unlockPassword" class="option-input" placeholder="Ingresa la contraseña del PDF">
+                        <div class="password-input-wrapper">
+                            <input type="password" id="unlockPassword" class="option-input" placeholder="Ingresa la contraseña del PDF protegido">
+                            <button type="button" class="toggle-password" id="toggleUnlockPassword">
+                                <span class="eye-icon">👁️</span>
+                            </button>
+                        </div>
+                        <p class="option-hint">Ingresa la contraseña que protege el PDF para desbloquearlo y permitir su edición.</p>
+                    </div>
+                    <div class="unlock-note">
+                        <p class="info-text">
+                            ⚠️ Una vez desbloqueado, el PDF perderá su protección y podrá ser editado libremente.
+                            Asegúrate de tener autorización para desbloquear este documento.
+                        </p>
+                    </div>
                 </div>
             `;
+            
+            // Inicializar unlock
+            initializeUnlockMode();
             break;
 
         case 'compress':
@@ -651,7 +852,7 @@ function updateToolOptions() {
                 </div>
                 
                 <div class="compress-options">
-                    <div class="option-group">
+                <div class="option-group">
                         <label class="checkbox-label">
                             <input type="checkbox" id="optimizeImages" checked>
                             <span>Optimizar imágenes dentro del PDF</span>
@@ -845,9 +1046,9 @@ function updateToolOptions() {
                             <label class="option-label">Calidad de imagen</label>
                             <select id="scanQuality" class="option-input">
                                 <option value="high">Alta (mejor calidad, archivo más grande)</option>
-                                <option value="medium" selected>Media (balanceado)</option>
+                        <option value="medium" selected>Media (balanceado)</option>
                                 <option value="low">Baja (archivo más pequeño)</option>
-                            </select>
+                    </select>
                         </div>
                         
                         <div class="option-group">
@@ -866,7 +1067,7 @@ function updateToolOptions() {
                                 Puedes reorganizar las imágenes arrastrándolas antes de procesar.
                             </p>
                         </div>
-                    </div>
+                </div>
                 `;
                 
                 // Event listener para tamaño personalizado
@@ -883,28 +1084,113 @@ function updateToolOptions() {
 
         // Optimizar PDF
         case 'repair':
+            const repairTotalSize = files.length > 0 ? files.reduce((sum, file) => sum + file.size, 0) : 0;
+            const repairSizeMB = (repairTotalSize / (1024 * 1024)).toFixed(2);
+            
             toolOptions.innerHTML = `
-                <div class="option-group">
-                    <p style="color: var(--text-secondary);">
-                        El PDF será reparado y optimizado. Esto puede tomar unos momentos.
-                    </p>
+                <div class="repair-info-card">
+                    <div class="repair-header">
+                        <div class="repair-icon">🔧</div>
+                        <div class="repair-title">Reparar y Optimizar PDF</div>
+                    </div>
+                    ${files.length > 0 ? `
+                    <div class="repair-stats">
+                        <div class="repair-stat">
+                            <span class="repair-label">Tamaño del archivo:</span>
+                            <span class="repair-value">${repairSizeMB} MB</span>
+                        </div>
+                    </div>
+                    ` : ''}
+                    <div class="repair-options">
+                        <div class="option-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="repairStructure" checked>
+                                <span>Reparar estructura del documento</span>
+                            </label>
+                        </div>
+                        <div class="option-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="repairMetadata" checked>
+                                <span>Limpiar metadatos corruptos</span>
+                            </label>
+                        </div>
+                        <div class="option-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="repairFonts" checked>
+                                <span>Reparar referencias de fuentes</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="repair-note">
+                        <p class="info-text">
+                            ⚠️ El proceso de reparación puede tomar unos momentos dependiendo del tamaño del archivo.
+                            El PDF será optimizado y se corregirán errores de estructura.
+                        </p>
+                    </div>
                 </div>
             `;
             break;
 
         case 'ocr':
             toolOptions.innerHTML = `
-                <div class="option-group">
-                    <label class="option-label">Idioma</label>
-                    <select id="ocrLanguage" class="option-input">
-                        <option value="spa">Español</option>
-                        <option value="eng">Inglés</option>
-                        <option value="fra">Francés</option>
-                        <option value="deu">Alemán</option>
-                    </select>
-                    <p class="option-hint">Nota: OCR requiere herramientas adicionales del sistema.</p>
+                <div class="ocr-info-card">
+                    <div class="ocr-header">
+                        <div class="ocr-icon">👁️</div>
+                        <div class="ocr-title">Reconocimiento Óptico de Caracteres (OCR)</div>
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Idioma del texto</label>
+                        <div class="language-selector">
+                            <button class="language-btn active" data-lang="spa">
+                                <span class="lang-flag">🇪🇸</span>
+                                <span class="lang-name">Español</span>
+                            </button>
+                            <button class="language-btn" data-lang="eng">
+                                <span class="lang-flag">🇬🇧</span>
+                                <span class="lang-name">Inglés</span>
+                            </button>
+                            <button class="language-btn" data-lang="fra">
+                                <span class="lang-flag">🇫🇷</span>
+                                <span class="lang-name">Francés</span>
+                            </button>
+                            <button class="language-btn" data-lang="deu">
+                                <span class="lang-flag">🇩🇪</span>
+                                <span class="lang-name">Alemán</span>
+                            </button>
+                        </div>
+                        <input type="hidden" id="ocrLanguage" value="spa">
+                    </div>
+                    <div class="ocr-options">
+                        <div class="option-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="ocrDetectOrientation" checked>
+                                <span>Detectar orientación automáticamente</span>
+                            </label>
+                        </div>
+                        <div class="option-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="ocrImproveQuality" checked>
+                                <span>Mejorar calidad de imagen antes de OCR</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="ocr-note">
+                        <p class="premium-note">
+                            👑 Nota: OCR requiere herramientas adicionales del sistema (Tesseract OCR).
+                            El proceso puede tardar varios minutos dependiendo del tamaño del documento.
+                        </p>
+                    </div>
                 </div>
             `;
+            
+            // Inicializar selector de idioma
+            document.querySelectorAll('.language-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.language-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.getElementById('ocrLanguage').value = btn.dataset.lang;
+                });
+            });
             break;
 
         // Convertir a PDF
@@ -954,72 +1240,220 @@ function updateToolOptions() {
         // Editar PDF
         case 'rotate':
             toolOptions.innerHTML = `
-                <div class="option-group">
-                    <label class="option-label">Páginas a rotar (ej: 1,3,5-7 o "all")</label>
-                    <input type="text" id="pagesToRotate" class="option-input" placeholder="1,3,5-7 o all">
-                    <label class="option-label" style="margin-top: 15px;">Ángulo de rotación</label>
-                    <select id="rotateAngle" class="option-input">
-                        <option value="90">90° (sentido horario)</option>
-                        <option value="180">180°</option>
-                        <option value="270">270° (sentido antihorario)</option>
-                    </select>
+                <div class="rotate-mode-selector">
+                    <button class="rotate-mode-btn active" data-mode="visual" id="rotateModeVisual">
+                        <span class="mode-icon">👁️</span>
+                        <span class="mode-text">Visual</span>
+                    </button>
+                    <button class="rotate-mode-btn" data-mode="pages" id="rotateModePages">
+                        <span class="mode-icon">📄</span>
+                        <span class="mode-text">Páginas</span>
+                    </button>
+                </div>
+                
+                <!-- Contenido para modo Visual -->
+                <div class="rotate-content" id="rotateContentVisual">
+                    <div class="visual-rotate-info">
+                        <p class="info-text">Haz clic en los botones de rotar (↻) de cada página en la vista previa para rotarlas individualmente.</p>
+                        <div class="rotate-stats">
+                            <span class="stat-item">
+                                <span class="stat-label">Páginas rotadas:</span>
+                                <span class="stat-value" id="rotatedPagesCount">0</span>
+                            </span>
+                        </div>
+                        <div class="option-group" style="margin-top: 15px;">
+                            <label class="option-label">Ángulo de rotación</label>
+                            <div class="angle-selector">
+                                <button class="angle-btn" data-angle="90">90°</button>
+                                <button class="angle-btn" data-angle="180">180°</button>
+                                <button class="angle-btn" data-angle="270">270°</button>
+                            </div>
+                            <input type="hidden" id="rotateAngle" value="90">
+                        </div>
+                        <div class="visual-actions" style="margin-top: 15px;">
+                            <button class="action-btn secondary" id="rotateAllVisualBtn">Rotar todas las páginas</button>
+                            <button class="action-btn secondary" id="resetRotationsVisualBtn">Restaurar todas</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Contenido para modo Páginas -->
+                <div class="rotate-content hidden" id="rotateContentPages">
+                    <div class="option-group">
+                        <label class="option-label">Páginas a rotar</label>
+                        <input type="text" id="pagesToRotate" class="option-input" placeholder="1,3,5-7 o all">
+                        <p class="option-hint">Separa páginas con comas. Usa guiones para rangos o "all" para todas</p>
+                    </div>
+                    <div class="option-group">
+                        <label class="option-label">Ángulo de rotación</label>
+                        <div class="angle-selector">
+                            <button class="angle-btn" data-angle="90">90°</button>
+                            <button class="angle-btn" data-angle="180">180°</button>
+                            <button class="angle-btn" data-angle="270">270°</button>
+                        </div>
+                        <input type="hidden" id="rotateAnglePages" value="90">
+                    </div>
                 </div>
             `;
+            
+            // Inicializar modo rotate
+            initializeRotateMode();
             break;
 
         case 'page-numbers':
             toolOptions.innerHTML = `
-                <div class="option-group">
-                    <label class="option-label">Posición</label>
-                    <select id="pageNumberPosition" class="option-input">
-                        <option value="bottom-center">Abajo centro</option>
-                        <option value="bottom-left">Abajo izquierda</option>
-                        <option value="bottom-right">Abajo derecha</option>
-                        <option value="top-center">Arriba centro</option>
-                        <option value="top-left">Arriba izquierda</option>
-                        <option value="top-right">Arriba derecha</option>
-                    </select>
-                </div>
-                <div class="option-group">
-                    <label class="option-label">Formato</label>
-                    <select id="pageNumberFormat" class="option-input">
-                        <option value="1">1, 2, 3...</option>
-                        <option value="i">i, ii, iii...</option>
-                        <option value="I">I, II, III...</option>
-                        <option value="a">a, b, c...</option>
-                        <option value="A">A, B, C...</option>
-                    </select>
-                </div>
-                <div class="option-group">
-                    <label class="option-label">Página inicial</label>
-                    <input type="number" id="startPage" class="option-input" value="1" min="1">
+                <div class="page-numbers-config">
+                    <div class="position-selector-section">
+                        <label class="section-label">Posición</label>
+                        <div class="position-grid">
+                            <button class="position-btn" data-position="top-left">
+                                <span class="position-icon">↖️</span>
+                                <span class="position-text">Arriba<br>Izquierda</span>
+                            </button>
+                            <button class="position-btn active" data-position="top-center">
+                                <span class="position-icon">⬆️</span>
+                                <span class="position-text">Arriba<br>Centro</span>
+                            </button>
+                            <button class="position-btn" data-position="top-right">
+                                <span class="position-icon">↗️</span>
+                                <span class="position-text">Arriba<br>Derecha</span>
+                            </button>
+                            <button class="position-btn" data-position="bottom-left">
+                                <span class="position-icon">↙️</span>
+                                <span class="position-text">Abajo<br>Izquierda</span>
+                            </button>
+                            <button class="position-btn" data-position="bottom-center">
+                                <span class="position-icon">⬇️</span>
+                                <span class="position-text">Abajo<br>Centro</span>
+                            </button>
+                            <button class="position-btn" data-position="bottom-right">
+                                <span class="position-icon">↘️</span>
+                                <span class="position-text">Abajo<br>Derecha</span>
+                            </button>
+                        </div>
+                        <input type="hidden" id="pageNumberPosition" value="bottom-center">
+                    </div>
+                    
+                    <div class="format-selector-section">
+                        <label class="section-label">Formato de numeración</label>
+                        <div class="format-selector">
+                            <button class="format-btn active" data-format="1">
+                                <span class="format-example">1, 2, 3...</span>
+                                <span class="format-name">Números</span>
+                            </button>
+                            <button class="format-btn" data-format="i">
+                                <span class="format-example">i, ii, iii...</span>
+                                <span class="format-name">Romanos (min)</span>
+                            </button>
+                            <button class="format-btn" data-format="I">
+                                <span class="format-example">I, II, III...</span>
+                                <span class="format-name">Romanos (may)</span>
+                            </button>
+                            <button class="format-btn" data-format="a">
+                                <span class="format-example">a, b, c...</span>
+                                <span class="format-name">Letras (min)</span>
+                            </button>
+                            <button class="format-btn" data-format="A">
+                                <span class="format-example">A, B, C...</span>
+                                <span class="format-name">Letras (may)</span>
+                            </button>
+                        </div>
+                        <input type="hidden" id="pageNumberFormat" value="1">
+                    </div>
+                    
+                    <div class="style-section">
+                        <div class="option-group">
+                            <label class="option-label">Tamaño de fuente</label>
+                            <input type="range" id="pageNumberSize" class="option-input" min="8" max="24" value="12">
+                            <p class="option-hint">Tamaño: <span id="sizeValue">12</span>pt</p>
+                        </div>
+                        <div class="option-group">
+                            <label class="option-label">Color</label>
+                            <input type="color" id="pageNumberColor" class="option-input" value="#000000">
+                        </div>
+                        <div class="option-group">
+                            <label class="option-label">Página inicial</label>
+                            <input type="number" id="pageNumberStart" class="option-input" value="1" min="1">
+                            <p class="option-hint">Número de la primera página</p>
+                        </div>
+                    </div>
                 </div>
             `;
+            
+            // Inicializar selectores
+            initializePageNumbersMode();
+            document.getElementById('pageNumberSize').addEventListener('input', (e) => {
+                document.getElementById('sizeValue').textContent = e.target.value;
+            });
             break;
 
         case 'watermark':
             toolOptions.innerHTML = `
-                <div class="option-group">
-                    <label class="option-label">Texto de marca de agua</label>
-                    <input type="text" id="watermarkText" class="option-input" placeholder="Ej: CONFIDENCIAL">
-                </div>
-                <div class="option-group">
-                    <label class="option-label">Posición</label>
-                    <select id="watermarkPosition" class="option-input">
-                        <option value="center">Centro</option>
-                        <option value="diagonal">Diagonal</option>
-                        <option value="tiled">Mosaico</option>
-                    </select>
-                </div>
-                <div class="option-group">
-                    <label class="option-label">Opacidad</label>
-                    <input type="range" id="watermarkOpacity" class="option-input" min="10" max="100" value="50">
-                    <p class="option-hint">Opacidad: <span id="opacityValue">50</span>%</p>
+                <div class="watermark-config">
+                    <div class="watermark-text-section">
+                        <label class="section-label">Texto de marca de agua</label>
+                        <input type="text" id="watermarkText" class="option-input" placeholder="Ej: CONFIDENCIAL, BORRADOR, etc.">
+                        <div class="quick-texts">
+                            <button class="quick-text-btn" data-text="CONFIDENCIAL">CONFIDENCIAL</button>
+                            <button class="quick-text-btn" data-text="BORRADOR">BORRADOR</button>
+                            <button class="quick-text-btn" data-text="COPIA">COPIA</button>
+                            <button class="quick-text-btn" data-text="MUESTRA">MUESTRA</button>
+                        </div>
+                    </div>
+                    
+                    <div class="watermark-position-section">
+                        <label class="section-label">Posición</label>
+                        <div class="watermark-position-selector">
+                            <button class="watermark-position-btn active" data-position="center">
+                                <span class="position-icon">🎯</span>
+                                <span class="position-text">Centro</span>
+                            </button>
+                            <button class="watermark-position-btn" data-position="diagonal">
+                                <span class="position-icon">↗️</span>
+                                <span class="position-text">Diagonal</span>
+                            </button>
+                            <button class="watermark-position-btn" data-position="tiled">
+                                <span class="position-icon">🔲</span>
+                                <span class="position-text">Mosaico</span>
+                            </button>
+                        </div>
+                        <input type="hidden" id="watermarkPosition" value="center">
+                    </div>
+                    
+                    <div class="watermark-style-section">
+                        <div class="option-group">
+                            <label class="option-label">Opacidad</label>
+                            <input type="range" id="watermarkOpacity" class="option-input" min="10" max="100" value="50">
+                            <p class="option-hint">Opacidad: <span id="opacityValue">50</span>%</p>
+                        </div>
+                        <div class="option-group">
+                            <label class="option-label">Tamaño de fuente</label>
+                            <input type="range" id="watermarkSize" class="option-input" min="12" max="72" value="48">
+                            <p class="option-hint">Tamaño: <span id="watermarkSizeValue">48</span>pt</p>
+                        </div>
+                        <div class="option-group">
+                            <label class="option-label">Color</label>
+                            <input type="color" id="watermarkColor" class="option-input" value="#808080">
+                        </div>
+                        <div class="option-group">
+                            <label class="option-label">Ángulo de rotación</label>
+                            <input type="range" id="watermarkAngle" class="option-input" min="0" max="360" value="45">
+                            <p class="option-hint">Ángulo: <span id="angleValue">45</span>°</p>
+                        </div>
+                    </div>
                 </div>
             `;
+            
+            // Inicializar watermark
+            initializeWatermarkMode();
             document.getElementById('watermarkOpacity')?.addEventListener('input', (e) => {
-                const opacitySpan = document.getElementById('opacityValue');
-                if (opacitySpan) opacitySpan.textContent = e.target.value;
+                document.getElementById('opacityValue').textContent = e.target.value;
+            });
+            document.getElementById('watermarkSize')?.addEventListener('input', (e) => {
+                document.getElementById('watermarkSizeValue').textContent = e.target.value;
+            });
+            document.getElementById('watermarkAngle')?.addEventListener('input', (e) => {
+                document.getElementById('angleValue').textContent = e.target.value;
             });
             break;
 
@@ -1164,7 +1598,7 @@ processBtn.addEventListener('click', async () => {
         if (!response.ok) {
             let errorMessage = 'Error al procesar los archivos';
             try {
-                const error = await response.json();
+            const error = await response.json();
                 errorMessage = error.message || errorMessage;
             } catch (e) {
                 // Si no se puede parsear el JSON, usar el texto de la respuesta
@@ -1387,6 +1821,10 @@ function getToolOptions() {
                 options.pagesToExtract = document.getElementById('pagesToExtract')?.value || '';
             }
             break;
+        case 'images-to-pdf':
+            options.pageSize = document.getElementById('imagesPageSize')?.value || 'A4';
+            options.orientation = document.getElementById('imagesOrientation')?.value || 'portrait';
+            break;
         case 'scan-to-pdf':
             options.pageSize = document.getElementById('scanPageSize')?.value || 'A4';
             options.orientation = document.getElementById('scanOrientation')?.value || 'portrait';
@@ -1398,15 +1836,24 @@ function getToolOptions() {
             }
             break;
         case 'pdf-to-images':
-            options.format = document.getElementById('imageFormat')?.value;
-            options.quality = document.getElementById('imageQuality')?.value;
+            options.format = document.getElementById('imageFormat')?.value || 'jpg';
+            options.quality = document.getElementById('imageQuality')?.value || '90';
+            options.dpi = document.getElementById('imageDPI')?.value || '300';
+            options.convertAllPages = document.getElementById('convertAllPages')?.checked !== false;
+            if (!options.convertAllPages) {
+                options.pagesRange = document.getElementById('pagesRange')?.value || '';
+            }
             break;
         case 'protect':
-            options.password = document.getElementById('password')?.value;
-            options.passwordConfirm = document.getElementById('passwordConfirm')?.value;
+            options.password = document.getElementById('password')?.value || '';
+            options.passwordConfirm = document.getElementById('passwordConfirm')?.value || '';
+            options.allowPrint = document.getElementById('allowPrint')?.checked || false;
+            options.allowCopy = document.getElementById('allowCopy')?.checked || false;
+            options.allowModify = document.getElementById('allowModify')?.checked || false;
+            options.allowAnnotate = document.getElementById('allowAnnotate')?.checked || false;
             break;
         case 'unlock':
-            options.password = document.getElementById('unlockPassword')?.value;
+            options.password = document.getElementById('unlockPassword')?.value || '';
             break;
         case 'compress':
             const activeCompressBtn = document.querySelector('.compress-level-btn.active');
@@ -1415,35 +1862,58 @@ function getToolOptions() {
             options.removeMetadata = document.getElementById('removeMetadata')?.checked || false;
             break;
         case 'ocr':
-            options.language = document.getElementById('ocrLanguage')?.value;
+            options.language = document.getElementById('ocrLanguage')?.value || 'spa';
+            options.detectOrientation = document.getElementById('ocrDetectOrientation')?.checked || false;
+            options.improveQuality = document.getElementById('ocrImproveQuality')?.checked || false;
+            break;
+        case 'repair':
+            options.repairStructure = document.getElementById('repairStructure')?.checked || false;
+            options.repairMetadata = document.getElementById('repairMetadata')?.checked || false;
+            options.repairFonts = document.getElementById('repairFonts')?.checked || false;
             break;
         case 'pdf-to-pdfa':
             options.version = document.getElementById('pdfaVersion')?.value;
             break;
         case 'rotate':
-            // Si hay vista previa activa, usar rotaciones de la vista previa
-            if (Object.keys(pageRotations).length > 0) {
-                const rotatedPages = Object.keys(pageRotations)
-                    .filter(i => pageRotations[i] !== 0)
-                    .map(i => parseInt(i) + 1);
-                options.pagesToRotate = rotatedPages.length > 0 ? rotatedPages.join(',') : 'all';
-                // Usar la primera rotación encontrada (o permitir múltiples ángulos)
-                const firstRotation = Object.values(pageRotations).find(r => r !== 0) || 90;
-                options.angle = firstRotation.toString();
+            const activeRotateModeBtn = document.querySelector('.rotate-mode-btn.active');
+            const activeRotateMode = activeRotateModeBtn?.dataset.mode || 'visual';
+            
+            if (activeRotateMode === 'visual') {
+                // Modo visual: usar rotaciones de la vista previa
+                if (Object.keys(pageRotations).length > 0) {
+                    const rotatedPages = Object.keys(pageRotations)
+                        .filter(i => pageRotations[i] !== 0)
+                        .map(i => parseInt(i) + 1);
+                    options.pagesToRotate = rotatedPages.length > 0 ? rotatedPages.join(',') : 'all';
+                    const angles = Object.values(pageRotations).filter(a => a !== 0);
+                    options.angle = angles.length > 0 ? angles[0].toString() : document.getElementById('rotateAngle')?.value || '90';
+                } else {
+                    options.pagesToRotate = '';
+                    options.angle = document.getElementById('rotateAngle')?.value || '90';
+                }
             } else {
-                options.pagesToRotate = document.getElementById('pagesToRotate')?.value;
-                options.angle = document.getElementById('rotateAngle')?.value;
+                // Modo páginas: usar input de texto
+                options.pagesToRotate = document.getElementById('pagesToRotate')?.value || '';
+                options.angle = document.getElementById('rotateAnglePages')?.value || '90';
             }
             break;
         case 'page-numbers':
-            options.position = document.getElementById('pageNumberPosition')?.value;
-            options.format = document.getElementById('pageNumberFormat')?.value;
-            options.startPage = document.getElementById('startPage')?.value;
+            options.position = document.getElementById('pageNumberPosition')?.value || 'bottom-center';
+            options.format = document.getElementById('pageNumberFormat')?.value || '1';
+            const pageNumberSize = document.getElementById('pageNumberSize')?.value;
+            if (pageNumberSize) options.size = pageNumberSize;
+            const pageNumberColor = document.getElementById('pageNumberColor')?.value;
+            if (pageNumberColor) options.color = pageNumberColor;
+            const pageNumberStart = document.getElementById('pageNumberStart')?.value;
+            if (pageNumberStart) options.start = pageNumberStart;
             break;
         case 'watermark':
-            options.text = document.getElementById('watermarkText')?.value;
-            options.position = document.getElementById('watermarkPosition')?.value;
-            options.opacity = document.getElementById('watermarkOpacity')?.value;
+            options.text = document.getElementById('watermarkText')?.value || '';
+            options.position = document.getElementById('watermarkPosition')?.value || 'center';
+            options.opacity = document.getElementById('watermarkOpacity')?.value || '50';
+            options.size = document.getElementById('watermarkSize')?.value || '48';
+            options.color = document.getElementById('watermarkColor')?.value || '#808080';
+            options.angle = document.getElementById('watermarkAngle')?.value || '45';
             break;
         case 'crop':
             options.top = document.getElementById('cropTop')?.value;
@@ -2058,6 +2528,11 @@ function deletePage(pageIndex) {
     // Si estamos en modo eliminar páginas, actualizar estadísticas
     if (currentTool === 'delete-pages') {
         updateDeleteStats();
+    }
+    
+    // Si estamos en modo rotar, actualizar estadísticas
+    if (currentTool === 'rotate') {
+        updateRotateStats();
     }
 }
 
@@ -3011,5 +3486,255 @@ function updateCompressPreview() {
         estimatedReductionEl.textContent = `~${estimatedReduction}%`;
         estimatedReductionEl.style.color = estimatedReduction > 30 ? 'var(--success-color)' : 'var(--text-secondary)';
     }
+}
+
+// ========== FUNCIONES PARA ROTAR PDF MEJORADO ==========
+
+function initializeRotateMode() {
+    // Event listeners para cambiar de modo
+    document.querySelectorAll('.rotate-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.dataset.mode;
+            switchRotateMode(mode);
+        });
+    });
+    
+    // Event listeners para ángulos
+    document.querySelectorAll('.angle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const angle = btn.dataset.angle;
+            selectAngle(angle);
+        });
+    });
+    
+    // Botones de acciones visuales
+    document.getElementById('rotateAllVisualBtn')?.addEventListener('click', () => {
+        const angle = parseInt(document.getElementById('rotateAngle')?.value || '90');
+        pdfPages.forEach((_, index) => {
+            if (!deletedPages.has(index)) {
+                const currentRotation = pageRotations[index] || 0;
+                const targetRotation = angle;
+                const rotationsNeeded = (targetRotation - currentRotation) / 90;
+                for (let i = 0; i < rotationsNeeded; i++) {
+                    rotatePage(index);
+                }
+            }
+        });
+        updatePreviewActions();
+    });
+    
+    document.getElementById('resetRotationsVisualBtn')?.addEventListener('click', () => {
+        pageRotations = {};
+        pdfPages.forEach((_, index) => {
+            const pageItem = document.querySelector(`[data-page-index="${index}"]`);
+            if (pageItem) {
+                pageItem.classList.remove('rotated');
+                const canvas = pageItem.querySelector('canvas');
+                if (canvas) canvas.style.transform = 'rotate(0deg)';
+                const rotationIndicator = pageItem.querySelector('.page-rotation-indicator');
+                if (rotationIndicator) rotationIndicator.textContent = '0°';
+            }
+        });
+        updatePreviewActions();
+    });
+    
+    updateRotateStats();
+}
+
+function switchRotateMode(mode) {
+    document.querySelectorAll('.rotate-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+    
+    document.getElementById('rotateContentVisual')?.classList.toggle('hidden', mode !== 'visual');
+    document.getElementById('rotateContentPages')?.classList.toggle('hidden', mode !== 'pages');
+    
+    if (mode === 'visual') {
+        updateRotateStats();
+    }
+}
+
+function selectAngle(angle) {
+    document.querySelectorAll('.angle-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.angle === angle);
+    });
+    
+    document.getElementById('rotateAngle').value = angle;
+    document.getElementById('rotateAnglePages').value = angle;
+}
+
+function updateRotateStats() {
+    const rotatedCount = Object.keys(pageRotations).filter(i => pageRotations[i] !== 0).length;
+    const rotatedCountEl = document.getElementById('rotatedPagesCount');
+    if (rotatedCountEl) {
+        rotatedCountEl.textContent = rotatedCount;
+        rotatedCountEl.style.color = rotatedCount > 0 ? 'var(--primary-color)' : 'var(--text-secondary)';
+    }
+}
+
+// ========== FUNCIONES PARA AGREGAR NÚMEROS DE PÁGINA ==========
+
+function initializePageNumbersMode() {
+    // Event listeners para posición
+    document.querySelectorAll('.position-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.position-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('pageNumberPosition').value = btn.dataset.position;
+        });
+    });
+    
+    // Event listeners para formato
+    document.querySelectorAll('.format-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('pageNumberFormat').value = btn.dataset.format;
+        });
+    });
+}
+
+// ========== FUNCIONES PARA MARCA DE AGUA ==========
+
+function initializeWatermarkMode() {
+    // Event listeners para textos rápidos
+    document.querySelectorAll('.quick-text-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.getElementById('watermarkText').value = btn.dataset.text;
+        });
+    });
+    
+    // Event listeners para posición
+    document.querySelectorAll('.watermark-position-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.watermark-position-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('watermarkPosition').value = btn.dataset.position;
+        });
+    });
+}
+
+// ========== FUNCIONES PARA PROTEGER PDF ==========
+
+function initializeProtectMode() {
+    const passwordInput = document.getElementById('password');
+    const passwordConfirmInput = document.getElementById('passwordConfirm');
+    const togglePasswordBtn = document.getElementById('togglePassword');
+    const togglePasswordConfirmBtn = document.getElementById('togglePasswordConfirm');
+    
+    // Toggle mostrar/ocultar contraseña
+    togglePasswordBtn?.addEventListener('click', () => {
+        const type = passwordInput.type === 'password' ? 'text' : 'password';
+        passwordInput.type = type;
+    });
+    
+    togglePasswordConfirmBtn?.addEventListener('click', () => {
+        const type = passwordConfirmInput.type === 'password' ? 'text' : 'password';
+        passwordConfirmInput.type = type;
+    });
+    
+    // Validar fortaleza de contraseña
+    passwordInput?.addEventListener('input', () => {
+        checkPasswordStrength(passwordInput.value);
+        checkPasswordMatch();
+    });
+    
+    // Validar coincidencia de contraseñas
+    passwordConfirmInput?.addEventListener('input', () => {
+        checkPasswordMatch();
+    });
+}
+
+function checkPasswordStrength(password) {
+    const strengthBar = document.querySelector('.strength-bar');
+    const strengthText = document.getElementById('strengthText');
+    
+    if (!strengthBar || !strengthText) return;
+    
+    let strength = 0;
+    let strengthLabel = 'Débil';
+    let strengthColor = '#ef4444';
+    
+    if (password.length >= 8) strength++;
+    if (password.length >= 12) strength++;
+    if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+    if (/\d/.test(password)) strength++;
+    if (/[^a-zA-Z0-9]/.test(password)) strength++;
+    
+    if (strength >= 4) {
+        strengthLabel = 'Fuerte';
+        strengthColor = '#10b981';
+    } else if (strength >= 2) {
+        strengthLabel = 'Media';
+        strengthColor = '#f59e0b';
+    }
+    
+    strengthBar.style.width = `${(strength / 5) * 100}%`;
+    strengthBar.style.backgroundColor = strengthColor;
+    strengthText.textContent = strengthLabel;
+    strengthText.style.color = strengthColor;
+}
+
+function checkPasswordMatch() {
+    const password = document.getElementById('password')?.value;
+    const passwordConfirm = document.getElementById('passwordConfirm')?.value;
+    const matchDiv = document.getElementById('passwordMatch');
+    
+    if (!matchDiv) return;
+    
+    if (passwordConfirm.length === 0) {
+        matchDiv.innerHTML = '';
+        return;
+    }
+    
+    if (password === passwordConfirm) {
+        matchDiv.innerHTML = '<span style="color: var(--success-color);">✓ Las contraseñas coinciden</span>';
+    } else {
+        matchDiv.innerHTML = '<span style="color: var(--danger-color);">✗ Las contraseñas no coinciden</span>';
+    }
+}
+
+// ========== FUNCIONES PARA DESBLOQUEAR PDF ==========
+
+function initializeUnlockMode() {
+    const unlockPasswordInput = document.getElementById('unlockPassword');
+    const toggleUnlockPasswordBtn = document.getElementById('toggleUnlockPassword');
+    
+    toggleUnlockPasswordBtn?.addEventListener('click', () => {
+        const type = unlockPasswordInput.type === 'password' ? 'text' : 'password';
+        unlockPasswordInput.type = type;
+    });
+}
+
+// ========== FUNCIONES PARA PDF A IMÁGENES ==========
+
+function initializePdfToImagesMode() {
+    // Event listeners para formato
+    document.querySelectorAll('.format-image-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.format-image-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('imageFormat').value = btn.dataset.format;
+            
+            // Mostrar/ocultar calidad según formato
+            const qualitySection = document.querySelector('.quality-section');
+            if (btn.dataset.format === 'png') {
+                qualitySection?.classList.add('hidden');
+            } else {
+                qualitySection?.classList.remove('hidden');
+            }
+        });
+    });
+    
+    // Event listeners para presets de calidad
+    document.querySelectorAll('.quality-preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.quality-preset-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const quality = btn.dataset.quality;
+            document.getElementById('imageQuality').value = quality;
+            document.getElementById('qualityValue').textContent = quality;
+        });
+    });
 }
 
