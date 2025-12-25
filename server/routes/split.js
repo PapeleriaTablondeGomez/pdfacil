@@ -94,7 +94,8 @@ router.post('/', upload.single('files'), async (req, res) => {
 
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', 'attachment; filename="split.pdf"');
-            res.send(pdfBytes);
+            res.setHeader('Content-Length', pdfBytes.length);
+            res.send(Buffer.from(pdfBytes));
             return;
         }
 

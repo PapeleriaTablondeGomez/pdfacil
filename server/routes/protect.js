@@ -73,7 +73,8 @@ router.post('/', upload.single('files'), async (req, res) => {
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename="protected.pdf"');
-        res.send(pdfBytes);
+        res.setHeader('Content-Length', pdfBytes.length);
+        res.send(Buffer.from(pdfBytes));
 
         setTimeout(async () => {
             await fs.unlink(outputPath).catch(() => {});

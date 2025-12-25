@@ -403,13 +403,42 @@ processBtn.addEventListener('click', async () => {
 
         updateProgress(70, 'Procesando PDF...');
 
+        // Verificar que el Content-Type sea correcto
+        const contentType = response.headers.get('content-type');
+        console.log('Content-Type recibido:', contentType);
+        
+        if (!contentType || (!contentType.includes('application/pdf') && !contentType.includes('application/zip'))) {
+            console.warn('Content-Type inesperado:', contentType);
+        }
+
+        // Obtener el blob de la respuesta
         const blob = await response.blob();
-        const downloadUrl = URL.createObjectURL(blob);
+        
+        // Validar que el blob tenga contenido
+        if (blob.size === 0) {
+            throw new Error('El archivo recibido está vacío. Por favor, intenta de nuevo.');
+        }
+        
+        console.log('Tamaño del archivo recibido:', blob.size, 'bytes');
+        
+        // Intentar obtener el nombre del archivo del header Content-Disposition
+        const contentDisposition = response.headers.get('content-disposition');
+        let fileName = null;
+        if (contentDisposition) {
+            const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+            if (fileNameMatch && fileNameMatch[1]) {
+                fileName = fileNameMatch[1].replace(/['"]/g, '');
+                console.log('Nombre de archivo del servidor:', fileName);
+            }
+        }
+        
+        // Crear URL del blob con el tipo MIME correcto
+        const blobUrl = URL.createObjectURL(blob);
 
         updateProgress(100, 'Completado');
 
         setTimeout(() => {
-            showResult(downloadUrl);
+            showResult(blobUrl, fileName);
         }, 500);
 
     } catch (error) {
@@ -473,14 +502,30 @@ function updateProgress(percent, text) {
     document.getElementById('progressDetail').textContent = `${percent}% completado`;
 }
 
-function showResult(downloadUrl) {
+function showResult(downloadUrl, serverFileName = null) {
     progressPanel.classList.add('hidden');
     resultPanel.classList.remove('hidden');
     
     const downloadLink = document.getElementById('downloadLink');
     downloadLink.href = downloadUrl;
     
-    const fileName = currentTool === 'pdf-to-images' ? 'imagenes.zip' : 'documento.pdf';
+    // Usar el nombre del servidor si está disponible, sino usar nombres por defecto
+    let fileName = serverFileName;
+    if (!fileName) {
+        // Nombres por defecto según la herramienta
+        const defaultNames = {
+            'merge': 'merged.pdf',
+            'split': 'split.pdf', // Puede ser .pdf o .zip según el caso
+            'organize': 'organized.pdf',
+            'images-to-pdf': 'images.pdf',
+            'pdf-to-images': 'imagenes.zip',
+            'protect': 'protected.pdf',
+            'unlock': 'unlocked.pdf',
+            'compress': 'compressed.pdf'
+        };
+        fileName = defaultNames[currentTool] || 'documento.pdf';
+    }
+    
     downloadLink.download = fileName;
     
     document.getElementById('resultMessage').textContent = 

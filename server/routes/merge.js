@@ -69,10 +69,11 @@ router.post('/', upload.array('files', 20), async (req, res) => {
             await fs.unlink(file.path).catch(() => {});
         }
 
-        // Enviar archivo
+        // Enviar archivo como Buffer para asegurar correcta transmisión binaria
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename="merged.pdf"');
-        res.send(pdfBytes);
+        res.setHeader('Content-Length', pdfBytes.length);
+        res.send(Buffer.from(pdfBytes));
 
         // Eliminar archivo de salida después de enviarlo
         setTimeout(async () => {

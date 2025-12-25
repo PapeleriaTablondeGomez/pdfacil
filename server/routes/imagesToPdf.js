@@ -80,7 +80,8 @@ router.post('/', upload.array('files', 20), async (req, res) => {
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename="images.pdf"');
-        res.send(pdfBytes);
+        res.setHeader('Content-Length', pdfBytes.length);
+        res.send(Buffer.from(pdfBytes));
 
     } catch (error) {
         console.error('Error en imagesToPdf:', error);

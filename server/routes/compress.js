@@ -62,10 +62,11 @@ router.post('/', upload.single('files'), async (req, res) => {
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename="compressed.pdf"');
+        res.setHeader('Content-Length', pdfBytes.length);
         res.setHeader('X-Original-Size', originalSize);
         res.setHeader('X-Compressed-Size', compressedSize);
         res.setHeader('X-Compression-Ratio', compressionRatio);
-        res.send(pdfBytes);
+        res.send(Buffer.from(pdfBytes));
 
         setTimeout(async () => {
             await fs.unlink(outputPath).catch(() => {});
