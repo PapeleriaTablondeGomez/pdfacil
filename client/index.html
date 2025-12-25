@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Tools - Manipulación Profesional de PDFs</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📄 PDF Tools</h1>
+            <p class="subtitle">Herramientas profesionales para manipular archivos PDF</p>
+        </header>
+
+        <div class="tool-selector">
+            <button class="tool-btn active" data-tool="merge">
+                <span class="icon">🔗</span>
+                <span>Unir PDFs</span>
+            </button>
+            <button class="tool-btn" data-tool="split">
+                <span class="icon">✂️</span>
+                <span>Dividir PDF</span>
+            </button>
+            <button class="tool-btn" data-tool="organize">
+                <span class="icon">📋</span>
+                <span>Organizar PDF</span>
+            </button>
+            <button class="tool-btn" data-tool="images-to-pdf">
+                <span class="icon">🖼️</span>
+                <span>Imágenes → PDF</span>
+            </button>
+            <button class="tool-btn" data-tool="pdf-to-images">
+                <span class="icon">📸</span>
+                <span>PDF → Imágenes</span>
+            </button>
+            <button class="tool-btn" data-tool="protect">
+                <span class="icon">🔒</span>
+                <span>Proteger PDF</span>
+            </button>
+            <button class="tool-btn" data-tool="unlock">
+                <span class="icon">🔓</span>
+                <span>Desbloquear PDF</span>
+            </button>
+            <button class="tool-btn" data-tool="compress">
+                <span class="icon">🗜️</span>
+                <span>Comprimir PDF</span>
+            </button>
+        </div>
+
+        <main>
+            <!-- Panel de carga de archivos -->
+            <div class="upload-panel" id="uploadPanel">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-content">
+                        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <p class="drop-text">Arrastra archivos aquí o haz clic para seleccionar</p>
+                        <p class="drop-hint">Máximo 50MB por archivo</p>
+                        <input type="file" id="fileInput" multiple accept=".pdf,.jpg,.jpeg,.png" hidden>
+                    </div>
+                </div>
+
+                <!-- Lista de archivos -->
+                <div class="files-list" id="filesList"></div>
+
+                <!-- Opciones específicas por herramienta -->
+                <div class="tool-options" id="toolOptions"></div>
+
+                <!-- Botón de procesar -->
+                <button class="process-btn" id="processBtn" disabled>
+                    <span>Procesar</span>
+                </button>
+            </div>
+
+            <!-- Panel de progreso -->
+            <div class="progress-panel hidden" id="progressPanel">
+                <div class="progress-content">
+                    <div class="spinner"></div>
+                    <h3 id="progressText">Procesando archivos...</h3>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p class="progress-detail" id="progressDetail"></p>
+                </div>
+            </div>
+
+            <!-- Panel de resultado -->
+            <div class="result-panel hidden" id="resultPanel">
+                <div class="result-content">
+                    <div class="success-icon">✓</div>
+                    <h3>¡Proceso completado!</h3>
+                    <p class="result-message" id="resultMessage"></p>
+                    <a href="#" id="downloadLink" class="download-btn" download>
+                        <span>⬇️ Descargar archivo</span>
+                    </a>
+                    <button class="new-process-btn" id="newProcessBtn">Nuevo proceso</button>
+                </div>
+            </div>
+
+            <!-- Panel de error -->
+            <div class="error-panel hidden" id="errorPanel">
+                <div class="error-content">
+                    <div class="error-icon">✗</div>
+                    <h3>Error</h3>
+                    <p class="error-message" id="errorMessage"></p>
+                    <button class="retry-btn" id="retryBtn">Reintentar</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
+

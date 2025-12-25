@@ -1,0 +1,21 @@
+{
+  "name": "pdf-tools",
+  "version": "1.0.0",
+  "description": "Aplicación web profesional para manipulación de archivos PDF",
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && echo 'Frontend no requiere npm install'",
+    "start:server": "cd server && npm start",
+    "dev:server": "cd server && npm run dev",
+    "test": "echo 'No hay tests configurados aún'"
+  },
+  "keywords": [
+    "pdf",
+    "tools",
+    "web-app",
+    "express",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+

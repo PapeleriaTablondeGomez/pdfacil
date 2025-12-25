@@ -1,0 +1,32 @@
+{
+  "name": "pdf-tools-backend",
+  "version": "1.0.0",
+  "description": "Backend para manipulación de archivos PDF",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "check": "node check-requirements.js"
+  },
+  "keywords": ["pdf", "tools", "express"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "pdf-lib": "^1.17.1",
+    "pdf2pic": "^3.1.1",
+    "sharp": "^0.32.6",
+    "archiver": "^6.0.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express-rate-limit": "^7.1.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+
