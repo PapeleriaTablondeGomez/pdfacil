@@ -1,8 +1,18 @@
 // Configuración
-// IMPORTANTE: Actualiza esta URL con la URL de tu backend en producción
-const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+// Detección automática del entorno y URL del backend
+const isDevelopment = window.location.hostname === 'localhost' || 
+                     window.location.hostname === '127.0.0.1' ||
+                     window.location.hostname.includes('localhost');
+
+const API_BASE_URL = isDevelopment
     ? 'http://localhost:3000/api' 
     : 'https://pdfacil.onrender.com/api';
+
+// Log para debugging (solo en desarrollo)
+if (isDevelopment) {
+    console.log('Modo desarrollo activado');
+    console.log('API URL:', API_BASE_URL);
+}
 
 // Estado de la aplicación
 let currentTool = 'merge';
@@ -353,14 +363,42 @@ processBtn.addEventListener('click', async () => {
 
         updateProgress(30, 'Subiendo archivos...');
 
-        const response = await fetch(`${API_BASE_URL}/${currentTool}`, {
+        const apiUrl = `${API_BASE_URL}/${currentTool}`;
+        console.log('Enviando petición a:', apiUrl);
+
+        const response = await fetch(apiUrl, {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: {
+                // No agregar Content-Type, fetch lo maneja automáticamente para FormData
+            }
         });
 
+        console.log('Respuesta recibida:', response.status, response.statusText);
+
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Error al procesar los archivos');
+            let errorMessage = 'Error al procesar los archivos';
+            try {
+                const error = await response.json();
+                errorMessage = error.message || errorMessage;
+            } catch (e) {
+                // Si no se puede parsear el JSON, usar el texto de la respuesta
+                const text = await response.text();
+                errorMessage = text || errorMessage;
+            }
+            
+            // Mensajes de error más específicos
+            if (response.status === 0 || response.status === 503) {
+                errorMessage = 'El servidor no está disponible. Por favor, intenta más tarde.';
+            } else if (response.status === 404) {
+                errorMessage = 'Endpoint no encontrado. Verifica la configuración del servidor.';
+            } else if (response.status === 429) {
+                errorMessage = 'Demasiadas solicitudes. Por favor, espera un momento antes de intentar de nuevo.';
+            } else if (response.status >= 500) {
+                errorMessage = 'Error del servidor. Por favor, intenta más tarde.';
+            }
+            
+            throw new Error(errorMessage);
         }
 
         updateProgress(70, 'Procesando PDF...');
@@ -375,7 +413,19 @@ processBtn.addEventListener('click', async () => {
         }, 500);
 
     } catch (error) {
-        showError(error.message || 'Ocurrió un error al procesar los archivos');
+        console.error('Error al procesar:', error);
+        
+        // Mensajes de error más descriptivos
+        let errorMessage = error.message || 'Ocurrió un error al procesar los archivos';
+        
+        // Detectar errores de red
+        if (error.message.includes('Failed to fetch') || 
+            error.message.includes('NetworkError') ||
+            error.message.includes('Network request failed')) {
+            errorMessage = 'No se pudo conectar con el servidor. Verifica tu conexión a internet y que el servidor esté disponible.';
+        }
+        
+        showError(errorMessage);
     }
 });
 

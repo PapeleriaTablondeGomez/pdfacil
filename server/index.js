@@ -17,11 +17,40 @@ const compressRoutes = require('./routes/compress');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Middleware CORS - Configuración mejorada para producción
+const allowedOrigins = process.env.FRONTEND_URL 
+    ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
+    : ['*'];
+
 const corsOptions = {
-    origin: process.env.FRONTEND_URL || '*',
+    origin: function (origin, callback) {
+        // Permitir requests sin origin (mobile apps, Postman, etc.)
+        if (!origin) return callback(null, true);
+        
+        // En desarrollo, permitir todos los orígenes
+        if (process.env.NODE_ENV !== 'production') {
+            return callback(null, true);
+        }
+        
+        // En producción, verificar contra la lista de orígenes permitidos
+        if (allowedOrigins.includes('*') || allowedOrigins.some(allowed => {
+            try {
+                const allowedUrl = new URL(allowed);
+                const originUrl = new URL(origin);
+                return allowedUrl.origin === originUrl.origin;
+            } catch {
+                return allowed === origin || allowed === '*';
+            }
+        })) {
+            callback(null, true);
+        } else {
+            callback(new Error('No permitido por CORS'));
+        }
+    },
     credentials: true,
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 };
 app.use(cors(corsOptions));
 app.use(express.json());
