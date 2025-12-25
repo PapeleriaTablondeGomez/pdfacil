@@ -414,30 +414,62 @@ function updateToolOptions() {
 
         case 'split':
             toolOptions.innerHTML = `
-                <div class="option-group">
-                    <label class="option-label">Modo de división</label>
-                    <select id="splitMode" class="option-input">
-                        <option value="pages">Por páginas específicas</option>
-                        <option value="range">Por rangos</option>
-                    </select>
+                <div class="split-mode-selector">
+                    <button class="split-mode-btn active" data-mode="range" id="splitModeRange">
+                        <span class="mode-icon">📊</span>
+                        <span class="mode-text">Rango</span>
+                    </button>
+                    <button class="split-mode-btn" data-mode="pages" id="splitModePages">
+                        <span class="mode-icon">📄</span>
+                        <span class="mode-text">Páginas</span>
+                    </button>
+                    <button class="split-mode-btn" data-mode="size" id="splitModeSize">
+                        <span class="mode-icon">📏</span>
+                        <span class="mode-text">Tamaño</span>
+                        <span class="premium-badge">👑</span>
+                    </button>
                 </div>
-                <div class="option-group">
-                    <label class="option-label" id="splitLabel">Páginas (ej: 1,3,5-7)</label>
-                    <input type="text" id="splitPages" class="option-input" placeholder="1,3,5-7">
-                    <p class="option-hint">Separa páginas con comas. Usa guiones para rangos.</p>
+                
+                <!-- Contenido para modo Rango -->
+                <div class="split-content" id="splitContentRange">
+                    <div class="range-type-selector">
+                        <button class="range-type-btn active" id="rangeTypeCustom">Rangos personalizados</button>
+                        <button class="range-type-btn" id="rangeTypeFixed">Rangos fijos</button>
+                    </div>
+                    <div class="ranges-container" id="rangesContainer">
+                        <!-- Los rangos se agregarán aquí dinámicamente -->
+                    </div>
+                    <button class="add-range-btn" id="addRangeBtn">
+                        <span>+</span> Añadir Rango
+                    </button>
+                    <div class="merge-ranges-option">
+                        <input type="checkbox" id="mergeRanges" class="merge-checkbox">
+                        <label for="mergeRanges">Unir todos los rangos en un único PDF</label>
+                    </div>
+                </div>
+                
+                <!-- Contenido para modo Páginas -->
+                <div class="split-content hidden" id="splitContentPages">
+                    <div class="option-group">
+                        <label class="option-label">Páginas específicas</label>
+                        <input type="text" id="splitPages" class="option-input" placeholder="1,3,5-7">
+                        <p class="option-hint">Separa páginas con comas. Usa guiones para rangos (ej: 1,3,5-7)</p>
+                    </div>
+                </div>
+                
+                <!-- Contenido para modo Tamaño -->
+                <div class="split-content hidden" id="splitContentSize">
+                    <div class="option-group">
+                        <label class="option-label">Tamaño máximo por archivo (MB)</label>
+                        <input type="number" id="splitSize" class="option-input" placeholder="10" min="1" max="50">
+                        <p class="option-hint">El PDF se dividirá en archivos del tamaño especificado</p>
+                        <p class="premium-note">👑 Esta función requiere herramientas adicionales del sistema</p>
+                    </div>
                 </div>
             `;
-            document.getElementById('splitMode').addEventListener('change', (e) => {
-                const label = document.getElementById('splitLabel');
-                const input = document.getElementById('splitPages');
-                if (e.target.value === 'pages') {
-                    label.textContent = 'Páginas (ej: 1,3,5-7)';
-                    input.placeholder = '1,3,5-7';
-                } else {
-                    label.textContent = 'Rangos (ej: 1-5,10-15)';
-                    input.placeholder = '1-5,10-15';
-                }
-            });
+            
+            // Inicializar modo split
+            initializeSplitMode();
             break;
 
         case 'organize':
@@ -933,8 +965,31 @@ function getToolOptions() {
 
     switch (currentTool) {
         case 'split':
-            options.mode = document.getElementById('splitMode')?.value;
-            options.pages = document.getElementById('splitPages')?.value;
+            const activeModeBtn = document.querySelector('.split-mode-btn.active');
+            const activeMode = activeModeBtn?.dataset.mode || 'range';
+            options.mode = activeMode;
+            
+            if (activeMode === 'range') {
+                // Obtener todos los rangos
+                const ranges = [];
+                document.querySelectorAll('.range-item').forEach(rangeItem => {
+                    const from = parseInt(rangeItem.querySelector('.range-from')?.value) || 1;
+                    const to = parseInt(rangeItem.querySelector('.range-to')?.value) || 1;
+                    if (from > 0 && to > 0 && to >= from) {
+                        ranges.push({ from, to });
+                    }
+                });
+                if (ranges.length > 0) {
+                    options.ranges = JSON.stringify(ranges);
+                    options.mergeRanges = document.getElementById('mergeRanges')?.checked || false;
+                    // También enviar en formato antiguo para compatibilidad
+                    options.pages = ranges.map(r => `${r.from}-${r.to}`).join(',');
+                }
+            } else if (activeMode === 'pages') {
+                options.pages = document.getElementById('splitPages')?.value;
+            } else if (activeMode === 'size') {
+                options.size = document.getElementById('splitSize')?.value;
+            }
             break;
         case 'organize':
             options.action = document.getElementById('organizeAction')?.value;
@@ -1216,6 +1271,11 @@ async function renderAllPDFsPreview() {
         
         // Inicializar eventos de botones de acción global
         initializePreviewActions();
+        
+        // Si estamos en modo split, actualizar los rangos con el número de páginas
+        if (currentTool === 'split') {
+            renderSplitRanges();
+        }
         
     } catch (error) {
         console.error('Error renderizando PDFs:', error);
@@ -1757,4 +1817,175 @@ function getActivePages() {
         }))
         .filter(page => !page.deleted);
 }
+
+// ========== FUNCIONES PARA DIVIDIR PDF MEJORADO ==========
+
+let splitRanges = []; // Almacena los rangos de división
+
+function initializeSplitMode() {
+    // Obtener número total de páginas del primer PDF si está disponible
+    let totalPages = 1;
+    if (files.length > 0 && pdfDocs[0]) {
+        totalPages = pdfDocs[0].numPages || 1;
+    } else if (pdfPages.length > 0) {
+        // Si hay páginas renderizadas, obtener el máximo
+        const maxPage = Math.max(...pdfPages.map(p => p.pageNum));
+        totalPages = maxPage || 1;
+    }
+    
+    // Inicializar con modo Rango por defecto
+    if (splitRanges.length === 0) {
+        splitRanges = [{ from: 1, to: Math.min(3, totalPages) }];
+    }
+    renderSplitRanges();
+    
+    // Event listeners para cambiar de modo
+    document.querySelectorAll('.split-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.dataset.mode;
+            switchSplitMode(mode);
+        });
+    });
+    
+    // Event listeners para tipo de rango
+    document.getElementById('rangeTypeCustom')?.addEventListener('click', () => {
+        document.getElementById('rangeTypeCustom').classList.add('active');
+        document.getElementById('rangeTypeFixed').classList.remove('active');
+    });
+    
+    document.getElementById('rangeTypeFixed')?.addEventListener('click', () => {
+        document.getElementById('rangeTypeFixed').classList.add('active');
+        document.getElementById('rangeTypeCustom').classList.remove('active');
+    });
+    
+    // Botón para agregar rango
+    document.getElementById('addRangeBtn')?.addEventListener('click', () => {
+        addSplitRange();
+    });
+}
+
+function switchSplitMode(mode) {
+    // Actualizar botones de modo
+    document.querySelectorAll('.split-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+    
+    // Mostrar/ocultar contenido según el modo
+    document.getElementById('splitContentRange')?.classList.toggle('hidden', mode !== 'range');
+    document.getElementById('splitContentPages')?.classList.toggle('hidden', mode !== 'pages');
+    document.getElementById('splitContentSize')?.classList.toggle('hidden', mode !== 'size');
+    
+    // Si es modo tamaño, mostrar mensaje de premium
+    if (mode === 'size') {
+        // Por ahora solo mostrar mensaje
+    }
+}
+
+function renderSplitRanges() {
+    const container = document.getElementById('rangesContainer');
+    if (!container) return;
+    
+    // Obtener número total de páginas del primer PDF si está disponible
+    let totalPages = 1;
+    if (files.length > 0 && pdfDocs[0]) {
+        totalPages = pdfDocs[0].numPages || 1;
+    } else if (pdfPages.length > 0) {
+        // Si hay páginas renderizadas, obtener el máximo
+        const maxPage = Math.max(...pdfPages.map(p => p.pageNum));
+        totalPages = maxPage || 1;
+    }
+    
+    container.innerHTML = '';
+    
+    splitRanges.forEach((range, index) => {
+        const rangeItem = document.createElement('div');
+        rangeItem.className = 'range-item';
+        rangeItem.dataset.rangeIndex = index;
+        
+        // Asegurar que los valores estén dentro del rango válido
+        const fromValue = Math.min(Math.max(1, range.from), totalPages);
+        const toValue = Math.min(Math.max(fromValue, range.to), totalPages);
+        
+        rangeItem.innerHTML = `
+            <div class="range-header">
+                <div class="range-move-buttons">
+                    <button class="range-move-btn" onclick="moveRange(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>▲</button>
+                    <button class="range-move-btn" onclick="moveRange(${index}, 'down')" ${index === splitRanges.length - 1 ? 'disabled' : ''}>▼</button>
+                </div>
+                <span class="range-title">Rango ${index + 1}</span>
+                <button class="range-delete-btn" onclick="removeSplitRange(${index})">✗</button>
+            </div>
+            <div class="range-inputs">
+                <div class="range-input-group">
+                    <label>de la página</label>
+                    <input type="number" class="range-from" value="${fromValue}" min="1" max="${totalPages}" onchange="updateRange(${index}, 'from', this.value)">
+                </div>
+                <div class="range-input-group">
+                    <label>a</label>
+                    <input type="number" class="range-to" value="${toValue}" min="1" max="${totalPages}" onchange="updateRange(${index}, 'to', this.value)">
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(rangeItem);
+    });
+}
+
+function addSplitRange() {
+    // Obtener el último rango para sugerir el siguiente
+    const lastRange = splitRanges[splitRanges.length - 1];
+    const nextFrom = lastRange ? lastRange.to + 1 : 1;
+    
+    splitRanges.push({ from: nextFrom, to: nextFrom });
+    renderSplitRanges();
+}
+
+function removeSplitRange(index) {
+    if (splitRanges.length > 1) {
+        splitRanges.splice(index, 1);
+        renderSplitRanges();
+    }
+}
+
+function updateRange(index, type, value) {
+    if (splitRanges[index]) {
+        const numValue = parseInt(value) || 1;
+        if (type === 'from') {
+            splitRanges[index].from = numValue;
+            // Asegurar que 'to' sea mayor o igual que 'from'
+            if (splitRanges[index].to < numValue) {
+                splitRanges[index].to = numValue;
+                const rangeItem = document.querySelector(`[data-range-index="${index}"]`);
+                if (rangeItem) {
+                    rangeItem.querySelector('.range-to').value = numValue;
+                }
+            }
+        } else {
+            splitRanges[index].to = numValue;
+            // Asegurar que 'from' sea menor o igual que 'to'
+            if (splitRanges[index].from > numValue) {
+                splitRanges[index].from = numValue;
+                const rangeItem = document.querySelector(`[data-range-index="${index}"]`);
+                if (rangeItem) {
+                    rangeItem.querySelector('.range-from').value = numValue;
+                }
+            }
+        }
+    }
+}
+
+function moveRange(index, direction) {
+    if (direction === 'up' && index > 0) {
+        [splitRanges[index], splitRanges[index - 1]] = [splitRanges[index - 1], splitRanges[index]];
+        renderSplitRanges();
+    } else if (direction === 'down' && index < splitRanges.length - 1) {
+        [splitRanges[index], splitRanges[index + 1]] = [splitRanges[index + 1], splitRanges[index]];
+        renderSplitRanges();
+    }
+}
+
+// Hacer funciones globales para los onclick
+window.removeSplitRange = removeSplitRange;
+window.updateRange = updateRange;
+window.moveRange = moveRange;
 
