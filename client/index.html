@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Tools - Manipulación Profesional de PDFs</title>
     <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -188,6 +189,25 @@
 
                 <!-- Lista de archivos -->
                 <div class="files-list" id="filesList"></div>
+
+                <!-- Vista previa de páginas PDF -->
+                <div class="pdf-preview-container hidden" id="pdfPreviewContainer">
+                    <div class="preview-header">
+                        <h3>Vista Previa de Páginas</h3>
+                        <div class="preview-actions">
+                            <button class="action-btn" id="selectAllBtn" title="Seleccionar todas">
+                                <span>✓</span> Todas
+                            </button>
+                            <button class="action-btn" id="deselectAllBtn" title="Deseleccionar todas">
+                                <span>✗</span> Ninguna
+                            </button>
+                            <button class="action-btn danger" id="deleteSelectedBtn" title="Eliminar seleccionadas">
+                                <span>🗑️</span> Eliminar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="pages-grid" id="pagesGrid"></div>
+                </div>
 
                 <!-- Opciones específicas por herramienta -->
                 <div class="tool-options" id="toolOptions"></div>

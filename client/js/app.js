@@ -19,6 +19,11 @@ let currentTool = 'merge';
 let currentCategory = 'organize';
 let files = [];
 let fileOrder = [];
+let pdfPages = []; // Almacena información de páginas PDF
+let pageRotations = {}; // Almacena rotaciones por página {index: degrees}
+let deletedPages = new Set(); // Páginas eliminadas
+let selectedPages = new Set(); // Páginas seleccionadas
+let pdfDoc = null; // Documento PDF cargado
 
 // Elementos DOM
 const dropZone = document.getElementById('dropZone');
@@ -30,6 +35,11 @@ const uploadPanel = document.getElementById('uploadPanel');
 const progressPanel = document.getElementById('progressPanel');
 const resultPanel = document.getElementById('resultPanel');
 const errorPanel = document.getElementById('errorPanel');
+const pdfPreviewContainer = document.getElementById('pdfPreviewContainer');
+const pagesGrid = document.getElementById('pagesGrid');
+const selectAllBtn = document.getElementById('selectAllBtn');
+const deselectAllBtn = document.getElementById('deselectAllBtn');
+const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
 
 // Mapeo de herramientas a categorías
 const toolCategoryMap = {
@@ -124,6 +134,13 @@ function initializeToolButtons() {
             
             files = [];
             fileOrder = [];
+            pdfPages = [];
+            pageRotations = {};
+            deletedPages.clear();
+            selectedPages.clear();
+            pdfDoc = null;
+            pdfPreviewContainer.classList.add('hidden');
+            pagesGrid.innerHTML = '';
             renderFilesList();
             updateToolOptions();
             resetUI();
@@ -162,7 +179,7 @@ function handleFileSelect(e) {
     addFiles(selectedFiles);
 }
 
-function addFiles(newFiles) {
+async function addFiles(newFiles) {
     const validFiles = newFiles.filter(file => {
         const isValid = validateFile(file);
         if (!isValid) {
@@ -171,15 +188,23 @@ function addFiles(newFiles) {
         return isValid;
     });
 
-    validFiles.forEach(file => {
+    for (const file of validFiles) {
         if (!files.find(f => f.name === file.name && f.size === file.size)) {
             files.push(file);
             fileOrder.push(files.length - 1);
+            
+            // Si es un PDF y la herramienta lo requiere, renderizar vista previa
+            const toolsWithPreview = ['merge', 'split', 'organize', 'delete-pages', 'extract-pages', 'rotate'];
+            if ((file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) && 
+                toolsWithPreview.includes(currentTool)) {
+                await renderPDFPreview(file, files.length - 1);
+            }
         }
-    });
+    }
 
     renderFilesList();
     updateProcessButton();
+    updateToolOptions();
 }
 
 function validateFile(file) {
@@ -240,6 +265,17 @@ function renderFilesList() {
 function removeFile(index) {
     files.splice(index, 1);
     fileOrder = fileOrder.filter(i => i !== index).map(i => i > index ? i - 1 : i);
+    
+    // Limpiar vista previa si se elimina el PDF
+    if (pdfPages.length > 0 && pdfPages[0].fileIndex === index) {
+        pdfPreviewContainer.classList.add('hidden');
+        pagesGrid.innerHTML = '';
+        pdfPages = [];
+        pageRotations = {};
+        deletedPages.clear();
+        selectedPages.clear();
+    }
+    
     renderFilesList();
     updateProcessButton();
     updateToolOptions();
@@ -806,10 +842,22 @@ function getToolOptions() {
             }
             break;
         case 'delete-pages':
-            options.pagesToDelete = document.getElementById('pagesToDelete')?.value;
+            // Si hay vista previa activa, usar páginas eliminadas
+            if (deletedPages.size > 0) {
+                const deletedArray = Array.from(deletedPages).sort((a, b) => a - b);
+                options.pagesToDelete = deletedArray.map(i => i + 1).join(',');
+            } else {
+                options.pagesToDelete = document.getElementById('pagesToDelete')?.value;
+            }
             break;
         case 'extract-pages':
-            options.pagesToExtract = document.getElementById('pagesToExtract')?.value;
+            // Si hay vista previa activa, usar páginas seleccionadas
+            if (selectedPages.size > 0) {
+                const selectedArray = Array.from(selectedPages).sort((a, b) => a - b);
+                options.pagesToExtract = selectedArray.map(i => i + 1).join(',');
+            } else {
+                options.pagesToExtract = document.getElementById('pagesToExtract')?.value;
+            }
             break;
         case 'pdf-to-images':
             options.format = document.getElementById('imageFormat')?.value;
@@ -832,8 +880,19 @@ function getToolOptions() {
             options.version = document.getElementById('pdfaVersion')?.value;
             break;
         case 'rotate':
-            options.pagesToRotate = document.getElementById('pagesToRotate')?.value;
-            options.angle = document.getElementById('rotateAngle')?.value;
+            // Si hay vista previa activa, usar rotaciones de la vista previa
+            if (Object.keys(pageRotations).length > 0) {
+                const rotatedPages = Object.keys(pageRotations)
+                    .filter(i => pageRotations[i] !== 0)
+                    .map(i => parseInt(i) + 1);
+                options.pagesToRotate = rotatedPages.length > 0 ? rotatedPages.join(',') : 'all';
+                // Usar la primera rotación encontrada (o permitir múltiples ángulos)
+                const firstRotation = Object.values(pageRotations).find(r => r !== 0) || 90;
+                options.angle = firstRotation.toString();
+            } else {
+                options.pagesToRotate = document.getElementById('pagesToRotate')?.value;
+                options.angle = document.getElementById('rotateAngle')?.value;
+            }
             break;
         case 'page-numbers':
             options.position = document.getElementById('pageNumberPosition')?.value;
@@ -926,6 +985,13 @@ function resetUI() {
 document.getElementById('newProcessBtn').addEventListener('click', () => {
     files = [];
     fileOrder = [];
+    pdfPages = [];
+    pageRotations = {};
+    deletedPages.clear();
+    selectedPages.clear();
+    pdfDoc = null;
+    pdfPreviewContainer.classList.add('hidden');
+    pagesGrid.innerHTML = '';
     fileInput.value = '';
     resetUI();
     renderFilesList();
@@ -940,4 +1006,372 @@ document.getElementById('retryBtn').addEventListener('click', () => {
 document.addEventListener('input', () => {
     updateProcessButton();
 });
+
+// ========== FUNCIONES DE VISTA PREVIA PDF ==========
+
+// Configurar PDF.js
+if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+// Renderizar vista previa de PDF
+async function renderPDFPreview(file, fileIndex) {
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        
+        pdfDoc = pdf;
+        const numPages = pdf.numPages;
+        
+        // Mostrar contenedor de vista previa
+        pdfPreviewContainer.classList.remove('hidden');
+        pagesGrid.innerHTML = '';
+        
+        // Resetear estados
+        pdfPages = [];
+        pageRotations = {};
+        deletedPages.clear();
+        selectedPages.clear();
+        
+        // Renderizar cada página
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+            await renderPage(pdf, pageNum, fileIndex);
+        }
+        
+        // Inicializar eventos de botones de acción global
+        initializePreviewActions();
+        
+    } catch (error) {
+        console.error('Error renderizando PDF:', error);
+        showError('Error al cargar la vista previa del PDF: ' + error.message);
+    }
+}
+
+// Renderizar una página individual
+async function renderPage(pdf, pageNum, fileIndex) {
+    try {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 0.5 });
+        
+        const pageIndex = pageNum - 1;
+        pdfPages.push({ page, pageNum, fileIndex });
+        
+        // Crear contenedor de página
+        const pageItem = document.createElement('div');
+        pageItem.className = 'page-preview-item';
+        pageItem.dataset.pageIndex = pageIndex;
+        pageItem.draggable = true;
+        
+        // Canvas para renderizar la página
+        const canvas = document.createElement('canvas');
+        canvas.className = 'page-preview-canvas';
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        // Renderizar página en canvas
+        await page.render({
+            canvasContext: context,
+            viewport: viewport
+        }).promise;
+        
+        // Controles de página
+        const controls = document.createElement('div');
+        controls.className = 'page-preview-controls';
+        
+        // Botón de selección
+        const selectBtn = document.createElement('button');
+        selectBtn.className = 'page-control-btn select';
+        selectBtn.innerHTML = '✓';
+        selectBtn.title = 'Seleccionar página';
+        selectBtn.onclick = (e) => {
+            e.stopPropagation();
+            togglePageSelection(pageIndex);
+        };
+        
+        // Botón de rotar
+        const rotateBtn = document.createElement('button');
+        rotateBtn.className = 'page-control-btn rotate';
+        rotateBtn.innerHTML = '🔄';
+        rotateBtn.title = 'Rotar página';
+        rotateBtn.onclick = (e) => {
+            e.stopPropagation();
+            rotatePage(pageIndex);
+        };
+        
+        // Botón de eliminar
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'page-control-btn delete';
+        deleteBtn.innerHTML = '✗';
+        deleteBtn.title = 'Eliminar página';
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation();
+            deletePage(pageIndex);
+        };
+        
+        controls.appendChild(selectBtn);
+        controls.appendChild(rotateBtn);
+        controls.appendChild(deleteBtn);
+        
+        // Badge de número de página
+        const pageBadge = document.createElement('div');
+        pageBadge.className = 'page-number-badge';
+        pageBadge.textContent = `Página ${pageNum}`;
+        
+        // Indicador de rotación
+        const rotationIndicator = document.createElement('div');
+        rotationIndicator.className = 'page-rotation-indicator';
+        rotationIndicator.textContent = '0°';
+        
+        // Overlay para páginas eliminadas
+        const overlay = document.createElement('div');
+        overlay.className = 'page-preview-overlay';
+        overlay.textContent = 'Eliminada';
+        
+        pageItem.appendChild(canvas);
+        pageItem.appendChild(controls);
+        pageItem.appendChild(pageBadge);
+        pageItem.appendChild(rotationIndicator);
+        pageItem.appendChild(overlay);
+        
+        // Eventos de drag and drop
+        pageItem.addEventListener('dragstart', handleDragStart);
+        pageItem.addEventListener('dragover', handleDragOver);
+        pageItem.addEventListener('drop', handleDrop);
+        pageItem.addEventListener('dragend', handleDragEnd);
+        
+        // Click para seleccionar
+        pageItem.addEventListener('click', (e) => {
+            if (e.target === pageItem || e.target === canvas) {
+                togglePageSelection(pageIndex);
+            }
+        });
+        
+        pagesGrid.appendChild(pageItem);
+        
+    } catch (error) {
+        console.error(`Error renderizando página ${pageNum}:`, error);
+    }
+}
+
+// Rotar página
+function rotatePage(pageIndex) {
+    const currentRotation = pageRotations[pageIndex] || 0;
+    const newRotation = (currentRotation + 90) % 360;
+    pageRotations[pageIndex] = newRotation;
+    
+    const pageItem = document.querySelector(`[data-page-index="${pageIndex}"]`);
+    if (pageItem) {
+        const indicator = pageItem.querySelector('.page-rotation-indicator');
+        indicator.textContent = `${newRotation}°`;
+        
+        if (newRotation !== 0) {
+            pageItem.classList.add('rotated');
+        } else {
+            pageItem.classList.remove('rotated');
+        }
+        
+        // Rotar el canvas visualmente
+        const canvas = pageItem.querySelector('canvas');
+        canvas.style.transform = `rotate(${newRotation}deg)`;
+    }
+}
+
+// Eliminar/restaurar página
+function deletePage(pageIndex) {
+    if (deletedPages.has(pageIndex)) {
+        deletedPages.delete(pageIndex);
+        selectedPages.delete(pageIndex);
+    } else {
+        deletedPages.add(pageIndex);
+        selectedPages.delete(pageIndex);
+    }
+    
+    const pageItem = document.querySelector(`[data-page-index="${pageIndex}"]`);
+    if (pageItem) {
+        pageItem.classList.toggle('deleted');
+        pageItem.classList.remove('selected');
+    }
+    
+    updatePreviewActions();
+}
+
+// Seleccionar/deseleccionar página
+function togglePageSelection(pageIndex) {
+    if (deletedPages.has(pageIndex)) return;
+    
+    if (selectedPages.has(pageIndex)) {
+        selectedPages.delete(pageIndex);
+    } else {
+        selectedPages.add(pageIndex);
+    }
+    
+    const pageItem = document.querySelector(`[data-page-index="${pageIndex}"]`);
+    if (pageItem) {
+        pageItem.classList.toggle('selected');
+    }
+    
+    updatePreviewActions();
+}
+
+// Drag and Drop
+let draggedElement = null;
+
+function handleDragStart(e) {
+    draggedElement = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', this.innerHTML);
+}
+
+function handleDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    
+    const afterElement = getDragAfterElement(pagesGrid, e.clientY);
+    const dragging = document.querySelector('.dragging');
+    
+    if (afterElement == null) {
+        pagesGrid.appendChild(dragging);
+    } else {
+        pagesGrid.insertBefore(dragging, afterElement);
+    }
+}
+
+function handleDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+    
+    return false;
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+    
+    // Actualizar orden de páginas basado en el nuevo orden DOM
+    const pageItems = Array.from(pagesGrid.querySelectorAll('.page-preview-item'));
+    const newOrder = pageItems.map(item => parseInt(item.dataset.pageIndex));
+    
+    // Reordenar pdfPages según el nuevo orden
+    const reorderedPages = newOrder.map(index => pdfPages[index]);
+    pdfPages = reorderedPages;
+    
+    // Actualizar rotaciones y estados según nuevo índice
+    const newRotations = {};
+    const newDeleted = new Set();
+    const newSelected = new Set();
+    
+    pageItems.forEach((item, newIndex) => {
+        const oldIndex = parseInt(item.dataset.pageIndex);
+        item.dataset.pageIndex = newIndex;
+        
+        if (pageRotations[oldIndex]) {
+            newRotations[newIndex] = pageRotations[oldIndex];
+        }
+        if (deletedPages.has(oldIndex)) {
+            newDeleted.add(newIndex);
+        }
+        if (selectedPages.has(oldIndex)) {
+            newSelected.add(newIndex);
+        }
+    });
+    
+    pageRotations = newRotations;
+    deletedPages = newDeleted;
+    selectedPages = newSelected;
+    
+    // Re-renderizar con nuevos índices
+    setTimeout(() => {
+        renderPagesInOrder();
+    }, 100);
+}
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.page-preview-item:not(.dragging)')];
+    
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+// Re-renderizar páginas en el orden actual
+async function renderPagesInOrder() {
+    // Esta función se puede usar para re-renderizar si es necesario
+    // Por ahora, solo actualizamos los números de página
+    pdfPages.forEach((pageInfo, index) => {
+        const pageItem = document.querySelector(`[data-page-index="${index}"]`);
+        if (pageItem) {
+            const badge = pageItem.querySelector('.page-number-badge');
+            badge.textContent = `Página ${index + 1}`;
+        }
+    });
+}
+
+// Inicializar acciones globales de vista previa
+function initializePreviewActions() {
+    if (selectAllBtn) {
+        selectAllBtn.onclick = () => {
+            pdfPages.forEach((_, index) => {
+                if (!deletedPages.has(index)) {
+                    selectedPages.add(index);
+                    const pageItem = document.querySelector(`[data-page-index="${index}"]`);
+                    if (pageItem) pageItem.classList.add('selected');
+                }
+            });
+            updatePreviewActions();
+        };
+    }
+    
+    if (deselectAllBtn) {
+        deselectAllBtn.onclick = () => {
+            selectedPages.clear();
+            document.querySelectorAll('.page-preview-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            updatePreviewActions();
+        };
+    }
+    
+    if (deleteSelectedBtn) {
+        deleteSelectedBtn.onclick = () => {
+            selectedPages.forEach(index => {
+                deletePage(index);
+            });
+            updatePreviewActions();
+        };
+    }
+}
+
+function updatePreviewActions() {
+    const selectedCount = selectedPages.size;
+    if (deleteSelectedBtn) {
+        deleteSelectedBtn.disabled = selectedCount === 0;
+        deleteSelectedBtn.textContent = selectedCount > 0 
+            ? `🗑️ Eliminar (${selectedCount})` 
+            : '🗑️ Eliminar';
+    }
+}
+
+// Obtener páginas activas (no eliminadas) con sus rotaciones
+function getActivePages() {
+    return pdfPages
+        .map((pageInfo, index) => ({
+            index,
+            pageInfo,
+            rotation: pageRotations[index] || 0,
+            deleted: deletedPages.has(index)
+        }))
+        .filter(page => !page.deleted);
+}
 
