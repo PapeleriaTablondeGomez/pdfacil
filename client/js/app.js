@@ -606,16 +606,81 @@ function updateToolOptions() {
             break;
 
         case 'compress':
+            const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+            const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+            
             toolOptions.innerHTML = `
-                <div class="option-group">
-                    <label class="option-label">Nivel de compresión</label>
-                    <select id="compressionLevel" class="option-input">
-                        <option value="low">Baja (mejor calidad)</option>
-                        <option value="medium" selected>Media (balanceado)</option>
-                        <option value="high">Alta (máxima compresión)</option>
-                    </select>
+                <div class="compress-info-card">
+                    <div class="file-size-info">
+                        <div class="size-display">
+                            <span class="size-label">Tamaño actual:</span>
+                            <span class="size-value" id="currentFileSize">${totalSizeMB} MB</span>
+                        </div>
+                        <div class="size-display">
+                            <span class="size-label">Archivos:</span>
+                            <span class="size-value">${files.length}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="compress-level-selector">
+                    <button class="compress-level-btn" data-level="low" id="compressLevelLow">
+                        <div class="level-icon">📄</div>
+                        <div class="level-info">
+                            <div class="level-name">Baja</div>
+                            <div class="level-desc">Mejor calidad</div>
+                            <div class="level-estimate">~${(totalSizeMB * 0.9).toFixed(2)} MB</div>
+                        </div>
+                    </button>
+                    <button class="compress-level-btn active" data-level="medium" id="compressLevelMedium">
+                        <div class="level-icon">⚖️</div>
+                        <div class="level-info">
+                            <div class="level-name">Media</div>
+                            <div class="level-desc">Balanceado</div>
+                            <div class="level-estimate">~${(totalSizeMB * 0.7).toFixed(2)} MB</div>
+                        </div>
+                    </button>
+                    <button class="compress-level-btn" data-level="high" id="compressLevelHigh">
+                        <div class="level-icon">🗜️</div>
+                        <div class="level-info">
+                            <div class="level-name">Alta</div>
+                            <div class="level-desc">Máxima compresión</div>
+                            <div class="level-estimate">~${(totalSizeMB * 0.5).toFixed(2)} MB</div>
+                        </div>
+                    </button>
+                </div>
+                
+                <div class="compress-options">
+                    <div class="option-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="optimizeImages" checked>
+                            <span>Optimizar imágenes dentro del PDF</span>
+                        </label>
+                    </div>
+                    <div class="option-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="removeMetadata" checked>
+                            <span>Eliminar metadatos innecesarios</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="compress-preview" id="compressPreview">
+                    <div class="preview-stats">
+                        <div class="preview-stat">
+                            <span class="preview-label">Tamaño estimado:</span>
+                            <span class="preview-value" id="estimatedSize">${(totalSizeMB * 0.7).toFixed(2)} MB</span>
+                        </div>
+                        <div class="preview-stat">
+                            <span class="preview-label">Reducción estimada:</span>
+                            <span class="preview-value" id="estimatedReduction">~30%</span>
+                        </div>
+                    </div>
                 </div>
             `;
+            
+            // Inicializar modo compress
+            initializeCompressMode();
             break;
 
         // Nuevas herramientas - Organizar PDF
@@ -1160,6 +1225,26 @@ processBtn.addEventListener('click', async () => {
             }
         }
         
+        // Si es compresión, mostrar estadísticas
+        if (currentTool === 'compress') {
+            const originalSize = response.headers.get('X-Original-Size');
+            const compressedSize = response.headers.get('X-Compressed-Size');
+            const compressionRatio = response.headers.get('X-Compression-Ratio');
+            
+            if (originalSize && compressedSize && compressionRatio) {
+                const originalMB = (parseInt(originalSize) / (1024 * 1024)).toFixed(2);
+                const compressedMB = (parseInt(compressedSize) / (1024 * 1024)).toFixed(2);
+                const ratio = parseFloat(compressionRatio);
+                
+                // Guardar estadísticas para mostrar después
+                window.compressStats = {
+                    original: originalMB,
+                    compressed: compressedMB,
+                    ratio: ratio
+                };
+            }
+        }
+        
         // Crear URL del blob
         const blobUrl = URL.createObjectURL(blob);
 
@@ -1324,7 +1409,10 @@ function getToolOptions() {
             options.password = document.getElementById('unlockPassword')?.value;
             break;
         case 'compress':
-            options.level = document.getElementById('compressionLevel')?.value;
+            const activeCompressBtn = document.querySelector('.compress-level-btn.active');
+            options.level = activeCompressBtn?.dataset.level || 'medium';
+            options.optimizeImages = document.getElementById('optimizeImages')?.checked || false;
+            options.removeMetadata = document.getElementById('removeMetadata')?.checked || false;
             break;
         case 'ocr':
             options.language = document.getElementById('ocrLanguage')?.value;
@@ -1415,7 +1503,20 @@ function showResult(downloadUrl, serverFileName = null) {
     
     downloadLink.download = fileName;
     
-    document.getElementById('resultMessage').textContent = 
+    // Si es compresión y hay estadísticas, mostrarlas
+    let resultMessage = '';
+    if (currentTool === 'compress' && window.compressStats) {
+        const stats = window.compressStats;
+        resultMessage = `✅ PDF comprimido exitosamente\n\n📊 Estadísticas:\n• Tamaño original: ${stats.original} MB\n• Tamaño comprimido: ${stats.compressed} MB\n• Reducción: ${stats.ratio > 0 ? '+' : ''}${stats.ratio}%`;
+        window.compressStats = null; // Limpiar después de usar
+    } else {
+        resultMessage = 'Archivo procesado exitosamente. Haz clic en el botón de descarga para obtener tu archivo.';
+    }
+    
+    const resultMessageEl = document.getElementById('resultMessage');
+    if (resultMessageEl) {
+        resultMessageEl.innerHTML = resultMessage.replace(/\n/g, '<br>');
+    } 
         `Tu archivo está listo para descargar.`;
 }
 
@@ -2849,6 +2950,66 @@ function updateOrganizeDeleteStats() {
     if (remainingCountEl) {
         remainingCountEl.textContent = remainingCount;
         remainingCountEl.style.color = remainingCount > 0 ? 'var(--success-color)' : 'var(--danger-color)';
+    }
+}
+
+// ========== FUNCIONES PARA COMPRIMIR PDF MEJORADO ==========
+
+function initializeCompressMode() {
+    // Event listeners para cambiar de nivel
+    document.querySelectorAll('.compress-level-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const level = btn.dataset.level;
+            switchCompressLevel(level);
+        });
+    });
+    
+    // Event listeners para opciones
+    document.getElementById('optimizeImages')?.addEventListener('change', updateCompressPreview);
+    document.getElementById('removeMetadata')?.addEventListener('change', updateCompressPreview);
+    
+    // Actualizar vista previa inicial
+    updateCompressPreview();
+}
+
+function switchCompressLevel(level) {
+    // Actualizar botones de nivel
+    document.querySelectorAll('.compress-level-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.level === level);
+    });
+    
+    // Actualizar vista previa
+    updateCompressPreview();
+}
+
+function updateCompressPreview() {
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    const totalSizeMB = totalSize / (1024 * 1024);
+    
+    const activeBtn = document.querySelector('.compress-level-btn.active');
+    const level = activeBtn?.dataset.level || 'medium';
+    
+    // Factores de compresión estimados
+    const compressionFactors = {
+        low: 0.9,    // 10% de reducción
+        medium: 0.7, // 30% de reducción
+        high: 0.5    // 50% de reducción
+    };
+    
+    const factor = compressionFactors[level] || 0.7;
+    const estimatedSizeMB = totalSizeMB * factor;
+    const estimatedReduction = ((1 - factor) * 100).toFixed(0);
+    
+    const estimatedSizeEl = document.getElementById('estimatedSize');
+    const estimatedReductionEl = document.getElementById('estimatedReduction');
+    
+    if (estimatedSizeEl) {
+        estimatedSizeEl.textContent = `${estimatedSizeMB.toFixed(2)} MB`;
+    }
+    
+    if (estimatedReductionEl) {
+        estimatedReductionEl.textContent = `~${estimatedReduction}%`;
+        estimatedReductionEl.style.color = estimatedReduction > 30 ? 'var(--success-color)' : 'var(--text-secondary)';
     }
 }
 
