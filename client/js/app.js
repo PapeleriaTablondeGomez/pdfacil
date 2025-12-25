@@ -560,12 +560,65 @@ function updateToolOptions() {
         // Nuevas herramientas - Organizar PDF
         case 'delete-pages':
             toolOptions.innerHTML = `
-                <div class="option-group">
-                    <label class="option-label">Páginas a eliminar (ej: 1,3,5-7)</label>
-                    <input type="text" id="pagesToDelete" class="option-input" placeholder="1,3,5-7">
-                    <p class="option-hint">Separa páginas con comas. Usa guiones para rangos.</p>
+                <div class="delete-mode-selector">
+                    <button class="delete-mode-btn active" data-mode="visual" id="deleteModeVisual">
+                        <span class="mode-icon">👁️</span>
+                        <span class="mode-text">Visual</span>
+                    </button>
+                    <button class="delete-mode-btn" data-mode="ranges" id="deleteModeRanges">
+                        <span class="mode-icon">📊</span>
+                        <span class="mode-text">Rangos</span>
+                    </button>
+                    <button class="delete-mode-btn" data-mode="pages" id="deleteModePages">
+                        <span class="mode-icon">📄</span>
+                        <span class="mode-text">Páginas</span>
+                    </button>
+                </div>
+                
+                <!-- Contenido para modo Visual -->
+                <div class="delete-content" id="deleteContentVisual">
+                    <div class="visual-delete-info">
+                        <p class="info-text">Haz clic en las páginas de la vista previa para marcarlas para eliminación.</p>
+                        <div class="delete-stats">
+                            <span class="stat-item">
+                                <span class="stat-label">Páginas a eliminar:</span>
+                                <span class="stat-value" id="deletedPagesCount">0</span>
+                            </span>
+                            <span class="stat-item">
+                                <span class="stat-label">Páginas restantes:</span>
+                                <span class="stat-value" id="remainingPagesCount">0</span>
+                            </span>
+                        </div>
+                        <div class="visual-actions">
+                            <button class="action-btn secondary" id="clearDeletedBtn">Limpiar selección</button>
+                            <button class="action-btn secondary" id="selectAllDeleteBtn">Seleccionar todas</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Contenido para modo Rangos -->
+                <div class="delete-content hidden" id="deleteContentRanges">
+                    <div class="ranges-container" id="deleteRangesContainer">
+                        <!-- Los rangos se agregarán aquí dinámicamente -->
+                    </div>
+                    <button class="add-range-btn" id="addDeleteRangeBtn">
+                        <span>+</span> Añadir Rango
+                    </button>
+                    <p class="option-hint">Especifica los rangos de páginas que deseas eliminar</p>
+                </div>
+                
+                <!-- Contenido para modo Páginas -->
+                <div class="delete-content hidden" id="deleteContentPages">
+                    <div class="option-group">
+                        <label class="option-label">Páginas a eliminar</label>
+                        <input type="text" id="pagesToDelete" class="option-input" placeholder="1,3,5-7">
+                        <p class="option-hint">Separa páginas con comas. Usa guiones para rangos (ej: 1,3,5-7)</p>
+                    </div>
                 </div>
             `;
+            
+            // Inicializar modo delete
+            initializeDeleteMode();
             break;
 
         case 'extract-pages':
@@ -1003,12 +1056,40 @@ function getToolOptions() {
             }
             break;
         case 'delete-pages':
-            // Si hay vista previa activa, usar páginas eliminadas
-            if (deletedPages.size > 0) {
-                const deletedArray = Array.from(deletedPages).sort((a, b) => a - b);
-                options.pagesToDelete = deletedArray.map(i => i + 1).join(',');
+            const activeDeleteModeBtn = document.querySelector('.delete-mode-btn.active');
+            const activeDeleteMode = activeDeleteModeBtn?.dataset.mode || 'visual';
+            
+            if (activeDeleteMode === 'visual') {
+                // Modo visual: usar páginas eliminadas de la vista previa
+                if (deletedPages.size > 0) {
+                    const deletedArray = Array.from(deletedPages).sort((a, b) => a - b);
+                    options.pagesToDelete = deletedArray.map(i => i + 1).join(',');
+                } else {
+                    options.pagesToDelete = '';
+                }
+            } else if (activeDeleteMode === 'ranges') {
+                // Modo rangos: convertir rangos a formato de páginas
+                const ranges = [];
+                document.querySelectorAll('#deleteRangesContainer .range-item').forEach(rangeItem => {
+                    const from = parseInt(rangeItem.querySelector('.range-from')?.value) || 1;
+                    const to = parseInt(rangeItem.querySelector('.range-to')?.value) || 1;
+                    if (from > 0 && to > 0 && to >= from) {
+                        ranges.push({ from, to });
+                    }
+                });
+                if (ranges.length > 0) {
+                    // Convertir rangos a lista de páginas
+                    const pagesToDelete = [];
+                    ranges.forEach(range => {
+                        for (let i = range.from; i <= range.to; i++) {
+                            pagesToDelete.push(i);
+                        }
+                    });
+                    options.pagesToDelete = [...new Set(pagesToDelete)].sort((a, b) => a - b).join(',');
+                }
             } else {
-                options.pagesToDelete = document.getElementById('pagesToDelete')?.value;
+                // Modo páginas: usar input de texto
+                options.pagesToDelete = document.getElementById('pagesToDelete')?.value || '';
             }
             break;
         case 'extract-pages':
@@ -1275,6 +1356,12 @@ async function renderAllPDFsPreview() {
         // Si estamos en modo split, actualizar los rangos con el número de páginas
         if (currentTool === 'split') {
             renderSplitRanges();
+        }
+        
+        // Si estamos en modo delete-pages, actualizar estadísticas y rangos
+        if (currentTool === 'delete-pages') {
+            updateDeleteStats();
+            renderDeleteRanges();
         }
         
     } catch (error) {
@@ -1584,10 +1671,15 @@ async function renderPage(pdf, pageNum, fileIndex, fileName = null) {
         pageItem.addEventListener('drop', handleDrop);
         pageItem.addEventListener('dragend', handleDragEnd);
         
-        // Click para seleccionar
+        // Click para seleccionar o eliminar según la herramienta
         pageItem.addEventListener('click', (e) => {
             if (e.target === pageItem || e.target === canvas) {
-                togglePageSelection(pageIndex);
+                if (currentTool === 'delete-pages') {
+                    // En modo eliminar páginas, hacer clic elimina/restaura
+                    deletePage(pageIndex);
+                } else {
+                    togglePageSelection(pageIndex);
+                }
             }
         });
         
@@ -1638,6 +1730,11 @@ function deletePage(pageIndex) {
     }
     
     updatePreviewActions();
+    
+    // Si estamos en modo eliminar páginas, actualizar estadísticas
+    if (currentTool === 'delete-pages') {
+        updateDeleteStats();
+    }
 }
 
 // Seleccionar/deseleccionar página
@@ -1803,6 +1900,11 @@ function updatePreviewActions() {
         deleteSelectedBtn.textContent = selectedCount > 0 
             ? `🗑️ Eliminar (${selectedCount})` 
             : '🗑️ Eliminar';
+    }
+    
+    // Si estamos en modo eliminar páginas, actualizar estadísticas
+    if (currentTool === 'delete-pages') {
+        updateDeleteStats();
     }
 }
 
@@ -1988,4 +2090,209 @@ function moveRange(index, direction) {
 window.removeSplitRange = removeSplitRange;
 window.updateRange = updateRange;
 window.moveRange = moveRange;
+
+// ========== FUNCIONES PARA ELIMINAR PÁGINAS MEJORADO ==========
+
+let deleteRanges = []; // Almacena los rangos de eliminación
+
+function initializeDeleteMode() {
+    // Inicializar con modo Visual por defecto
+    deleteRanges = [];
+    renderDeleteRanges();
+    updateDeleteStats();
+    
+    // Event listeners para cambiar de modo
+    document.querySelectorAll('.delete-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.dataset.mode;
+            switchDeleteMode(mode);
+        });
+    });
+    
+    // Botón para agregar rango
+    document.getElementById('addDeleteRangeBtn')?.addEventListener('click', () => {
+        addDeleteRange();
+    });
+    
+    // Botones de acciones visuales
+    document.getElementById('clearDeletedBtn')?.addEventListener('click', () => {
+        deletedPages.clear();
+        updateDeleteVisualState();
+        updateDeleteStats();
+    });
+    
+    document.getElementById('selectAllDeleteBtn')?.addEventListener('click', () => {
+        pdfPages.forEach((_, index) => {
+            deletedPages.add(index);
+        });
+        updateDeleteVisualState();
+        updateDeleteStats();
+    });
+}
+
+function switchDeleteMode(mode) {
+    // Actualizar botones de modo
+    document.querySelectorAll('.delete-mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+    
+    // Mostrar/ocultar contenido según el modo
+    document.getElementById('deleteContentVisual')?.classList.toggle('hidden', mode !== 'visual');
+    document.getElementById('deleteContentRanges')?.classList.toggle('hidden', mode !== 'ranges');
+    document.getElementById('deleteContentPages')?.classList.toggle('hidden', mode !== 'pages');
+    
+    // Si cambiamos a modo visual, actualizar el estado visual
+    if (mode === 'visual') {
+        updateDeleteVisualState();
+        updateDeleteStats();
+    }
+}
+
+function renderDeleteRanges() {
+    const container = document.getElementById('deleteRangesContainer');
+    if (!container) return;
+    
+    // Obtener número total de páginas del primer PDF si está disponible
+    let totalPages = 1;
+    if (files.length > 0 && pdfDocs[0]) {
+        totalPages = pdfDocs[0].numPages || 1;
+    } else if (pdfPages.length > 0) {
+        const maxPage = Math.max(...pdfPages.map(p => p.pageNum));
+        totalPages = maxPage || 1;
+    }
+    
+    container.innerHTML = '';
+    
+    if (deleteRanges.length === 0) {
+        deleteRanges = [{ from: 1, to: 1 }];
+    }
+    
+    deleteRanges.forEach((range, index) => {
+        const rangeItem = document.createElement('div');
+        rangeItem.className = 'range-item';
+        rangeItem.dataset.rangeIndex = index;
+        
+        const fromValue = Math.min(Math.max(1, range.from), totalPages);
+        const toValue = Math.min(Math.max(fromValue, range.to), totalPages);
+        
+        rangeItem.innerHTML = `
+            <div class="range-header">
+                <div class="range-move-buttons">
+                    <button class="range-move-btn" onclick="moveDeleteRange(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>▲</button>
+                    <button class="range-move-btn" onclick="moveDeleteRange(${index}, 'down')" ${index === deleteRanges.length - 1 ? 'disabled' : ''}>▼</button>
+                </div>
+                <span class="range-title">Rango ${index + 1}</span>
+                <button class="range-delete-btn" onclick="removeDeleteRange(${index})">✗</button>
+            </div>
+            <div class="range-inputs">
+                <div class="range-input-group">
+                    <label>de la página</label>
+                    <input type="number" class="range-from" value="${fromValue}" min="1" max="${totalPages}" onchange="updateDeleteRange(${index}, 'from', this.value)">
+                </div>
+                <div class="range-input-group">
+                    <label>a</label>
+                    <input type="number" class="range-to" value="${toValue}" min="1" max="${totalPages}" onchange="updateDeleteRange(${index}, 'to', this.value)">
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(rangeItem);
+    });
+}
+
+function addDeleteRange() {
+    let totalPages = 1;
+    if (files.length > 0 && pdfDocs[0]) {
+        totalPages = pdfDocs[0].numPages || 1;
+    } else if (pdfPages.length > 0) {
+        const maxPage = Math.max(...pdfPages.map(p => p.pageNum));
+        totalPages = maxPage || 1;
+    }
+    
+    const lastRange = deleteRanges[deleteRanges.length - 1];
+    const nextFrom = lastRange ? lastRange.to + 1 : 1;
+    
+    deleteRanges.push({ from: nextFrom, to: Math.min(nextFrom, totalPages) });
+    renderDeleteRanges();
+}
+
+function removeDeleteRange(index) {
+    if (deleteRanges.length > 1) {
+        deleteRanges.splice(index, 1);
+        renderDeleteRanges();
+    }
+}
+
+function updateDeleteRange(index, type, value) {
+    if (deleteRanges[index]) {
+        const numValue = parseInt(value) || 1;
+        if (type === 'from') {
+            deleteRanges[index].from = numValue;
+            if (deleteRanges[index].to < numValue) {
+                deleteRanges[index].to = numValue;
+                const rangeItem = document.querySelector(`#deleteRangesContainer [data-range-index="${index}"]`);
+                if (rangeItem) {
+                    rangeItem.querySelector('.range-to').value = numValue;
+                }
+            }
+        } else {
+            deleteRanges[index].to = numValue;
+            if (deleteRanges[index].from > numValue) {
+                deleteRanges[index].from = numValue;
+                const rangeItem = document.querySelector(`#deleteRangesContainer [data-range-index="${index}"]`);
+                if (rangeItem) {
+                    rangeItem.querySelector('.range-from').value = numValue;
+                }
+            }
+        }
+    }
+}
+
+function moveDeleteRange(index, direction) {
+    if (direction === 'up' && index > 0) {
+        [deleteRanges[index], deleteRanges[index - 1]] = [deleteRanges[index - 1], deleteRanges[index]];
+        renderDeleteRanges();
+    } else if (direction === 'down' && index < deleteRanges.length - 1) {
+        [deleteRanges[index], deleteRanges[index + 1]] = [deleteRanges[index + 1], deleteRanges[index]];
+        renderDeleteRanges();
+    }
+}
+
+function updateDeleteVisualState() {
+    // Actualizar el estado visual de las páginas eliminadas
+    pdfPages.forEach((_, index) => {
+        const pageItem = document.querySelector(`[data-page-index="${index}"]`);
+        if (pageItem) {
+            if (deletedPages.has(index)) {
+                pageItem.classList.add('deleted');
+            } else {
+                pageItem.classList.remove('deleted');
+            }
+        }
+    });
+}
+
+function updateDeleteStats() {
+    const deletedCount = deletedPages.size;
+    const totalCount = pdfPages.length;
+    const remainingCount = totalCount - deletedCount;
+    
+    const deletedCountEl = document.getElementById('deletedPagesCount');
+    const remainingCountEl = document.getElementById('remainingPagesCount');
+    
+    if (deletedCountEl) {
+        deletedCountEl.textContent = deletedCount;
+        deletedCountEl.style.color = deletedCount > 0 ? 'var(--danger-color)' : 'var(--text-secondary)';
+    }
+    
+    if (remainingCountEl) {
+        remainingCountEl.textContent = remainingCount;
+        remainingCountEl.style.color = remainingCount > 0 ? 'var(--success-color)' : 'var(--danger-color)';
+    }
+}
+
+// Hacer funciones globales para los onclick
+window.removeDeleteRange = removeDeleteRange;
+window.updateDeleteRange = updateDeleteRange;
+window.moveDeleteRange = moveDeleteRange;
 
