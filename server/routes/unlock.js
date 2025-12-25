@@ -71,9 +71,11 @@ router.post('/', upload.single('files'), async (req, res) => {
         await fs.writeFile(outputPath, pdfBytes);
         await fs.unlink(file.path);
 
+        const pdfBuffer = Buffer.from(pdfBytes);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename="unlocked.pdf"');
-        res.send(pdfBytes);
+        res.setHeader('Content-Length', pdfBuffer.length);
+        res.end(pdfBuffer, 'binary');
 
         setTimeout(async () => {
             await fs.unlink(outputPath).catch(() => {});

@@ -411,15 +411,23 @@ processBtn.addEventListener('click', async () => {
             console.warn('Content-Type inesperado:', contentType);
         }
 
-        // Obtener el blob de la respuesta
-        const blob = await response.blob();
+        // Obtener el array buffer primero para mayor control
+        const arrayBuffer = await response.arrayBuffer();
         
-        // Validar que el blob tenga contenido
-        if (blob.size === 0) {
+        // Validar que tenga contenido
+        if (arrayBuffer.byteLength === 0) {
             throw new Error('El archivo recibido está vacío. Por favor, intenta de nuevo.');
         }
         
-        console.log('Tamaño del archivo recibido:', blob.size, 'bytes');
+        console.log('Tamaño del archivo recibido:', arrayBuffer.byteLength, 'bytes');
+        
+        // Determinar el tipo MIME correcto
+        const mimeType = contentType && contentType.includes('application/zip') 
+            ? 'application/zip' 
+            : 'application/pdf';
+        
+        // Crear blob con el tipo MIME explícito
+        const blob = new Blob([arrayBuffer], { type: mimeType });
         
         // Intentar obtener el nombre del archivo del header Content-Disposition
         const contentDisposition = response.headers.get('content-disposition');
@@ -432,7 +440,7 @@ processBtn.addEventListener('click', async () => {
             }
         }
         
-        // Crear URL del blob con el tipo MIME correcto
+        // Crear URL del blob
         const blobUrl = URL.createObjectURL(blob);
 
         updateProgress(100, 'Completado');

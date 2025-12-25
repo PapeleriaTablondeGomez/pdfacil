@@ -78,10 +78,11 @@ router.post('/', upload.array('files', 20), async (req, res) => {
             await fs.unlink(file.path).catch(() => {});
         }
 
+        const pdfBuffer = Buffer.from(pdfBytes);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename="images.pdf"');
-        res.setHeader('Content-Length', pdfBytes.length);
-        res.send(Buffer.from(pdfBytes));
+        res.setHeader('Content-Length', pdfBuffer.length);
+        res.end(pdfBuffer, 'binary');
 
     } catch (error) {
         console.error('Error en imagesToPdf:', error);

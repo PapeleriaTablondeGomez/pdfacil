@@ -60,13 +60,14 @@ router.post('/', upload.single('files'), async (req, res) => {
         const compressedSize = pdfBytes.length;
         const compressionRatio = ((1 - compressedSize / originalSize) * 100).toFixed(1);
 
+        const pdfBuffer = Buffer.from(pdfBytes);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename="compressed.pdf"');
-        res.setHeader('Content-Length', pdfBytes.length);
+        res.setHeader('Content-Length', pdfBuffer.length);
         res.setHeader('X-Original-Size', originalSize);
         res.setHeader('X-Compressed-Size', compressedSize);
         res.setHeader('X-Compression-Ratio', compressionRatio);
-        res.send(Buffer.from(pdfBytes));
+        res.end(pdfBuffer, 'binary');
 
         setTimeout(async () => {
             await fs.unlink(outputPath).catch(() => {});
