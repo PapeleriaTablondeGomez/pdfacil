@@ -23,7 +23,20 @@ let pdfPages = []; // Almacena información de páginas PDF
 let pageRotations = {}; // Almacena rotaciones por página {index: degrees}
 let deletedPages = new Set(); // Páginas eliminadas
 let selectedPages = new Set(); // Páginas seleccionadas
-let pdfDoc = null; // Documento PDF cargado
+let pdfDocs = {}; // Documentos PDF cargados {fileIndex: pdfDoc}
+let fileColors = {}; // Colores asignados a cada archivo {fileIndex: color}
+const colorPalette = [
+    '#4f46e5', // Indigo
+    '#10b981', // Verde
+    '#f59e0b', // Amarillo
+    '#ef4444', // Rojo
+    '#8b5cf6', // Púrpura
+    '#06b6d4', // Cyan
+    '#ec4899', // Rosa
+    '#14b8a6', // Teal
+    '#f97316', // Naranja
+    '#6366f1', // Índigo claro
+];
 
 // Elementos DOM
 const dropZone = document.getElementById('dropZone');
@@ -996,7 +1009,8 @@ document.getElementById('newProcessBtn').addEventListener('click', () => {
     pageRotations = {};
     deletedPages.clear();
     selectedPages.clear();
-    pdfDoc = null;
+    pdfDocs = {};
+    fileColors = {};
     pdfPreviewContainer.classList.add('hidden');
     pagesGrid.innerHTML = '';
     fileInput.value = '';
@@ -1021,55 +1035,124 @@ if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
-// Renderizar vista previa de PDF
-async function renderPDFPreview(file, fileIndex) {
+// Renderizar vista previa de TODOS los PDFs
+async function renderAllPDFsPreview() {
     try {
-        // Limpiar vista previa anterior si existe
-        pagesGrid.innerHTML = '';
-        pdfPages = [];
-        pageRotations = {};
-        deletedPages.clear();
-        selectedPages.clear();
-        pdfDoc = null;
+        const toolsWithPreview = ['merge', 'split', 'organize', 'delete-pages', 'extract-pages', 'rotate'];
         
-        const arrayBuffer = await file.arrayBuffer();
-        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-        const pdf = await loadingTask.promise;
+        // Obtener solo los PDFs
+        const pdfFiles = files
+            .map((file, index) => ({ file, index }))
+            .filter(({ file }) => 
+                (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) &&
+                toolsWithPreview.includes(currentTool)
+            );
         
-        pdfDoc = pdf;
-        const numPages = pdf.numPages;
+        if (pdfFiles.length === 0) {
+            pdfPreviewContainer.classList.add('hidden');
+            return;
+        }
+        
+        // Limpiar solo si es la primera vez
+        const currentPageCount = pdfPages.length;
+        const shouldClear = currentPageCount === 0;
+        
+        if (shouldClear) {
+            pagesGrid.innerHTML = '';
+            pdfPages = [];
+            pageRotations = {};
+            deletedPages.clear();
+            selectedPages.clear();
+        } else {
+            // Si ya hay páginas, solo agregar las nuevas
+            // Verificar qué archivos ya están renderizados
+            const renderedFileIndexes = new Set(pdfPages.map(p => p.fileIndex));
+            const filesToRender = pdfFiles.filter(({ index }) => !renderedFileIndexes.has(index));
+            
+            // Solo procesar archivos nuevos
+            for (const { file, index: fileIndex } of filesToRender) {
+                if (!pdfDocs[fileIndex]) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                    const pdf = await loadingTask.promise;
+                    pdfDocs[fileIndex] = pdf;
+                }
+                
+                const pdf = pdfDocs[fileIndex];
+                const numPages = pdf.numPages;
+                
+                for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                    await renderPage(pdf, pageNum, fileIndex, file.name);
+                }
+            }
+            
+            // Ya renderizamos, salir
+            initializePreviewActions();
+            return;
+        }
         
         // Mostrar contenedor de vista previa
         pdfPreviewContainer.classList.remove('hidden');
         
-        // Renderizar cada página
-        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-            await renderPage(pdf, pageNum, fileIndex);
+        // Renderizar cada PDF
+        for (const { file, index: fileIndex } of pdfFiles) {
+            // Verificar si ya está cargado
+            if (!pdfDocs[fileIndex]) {
+                const arrayBuffer = await file.arrayBuffer();
+                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                const pdf = await loadingTask.promise;
+                pdfDocs[fileIndex] = pdf;
+            }
+            
+            const pdf = pdfDocs[fileIndex];
+            const numPages = pdf.numPages;
+            
+            // Renderizar cada página del PDF
+            for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                await renderPage(pdf, pageNum, fileIndex, file.name);
+            }
         }
         
         // Inicializar eventos de botones de acción global
         initializePreviewActions();
         
     } catch (error) {
-        console.error('Error renderizando PDF:', error);
-        showError('Error al cargar la vista previa del PDF: ' + error.message);
+        console.error('Error renderizando PDFs:', error);
+        showError('Error al cargar la vista previa de los PDFs: ' + error.message);
     }
 }
 
+// Renderizar vista previa de PDF (función legacy, mantener por compatibilidad)
+async function renderPDFPreview(file, fileIndex) {
+    await renderAllPDFsPreview();
+}
+
 // Renderizar una página individual
-async function renderPage(pdf, pageNum, fileIndex) {
+async function renderPage(pdf, pageNum, fileIndex, fileName = null) {
     try {
         const page = await pdf.getPage(pageNum);
         const viewport = page.getViewport({ scale: 0.5 });
         
-        const pageIndex = pageNum - 1;
-        pdfPages.push({ page, pageNum, fileIndex });
+        // Calcular índice global de página
+        const pageIndex = pdfPages.length;
+        pdfPages.push({ page, pageNum, fileIndex, fileName });
+        
+        // Obtener color del archivo
+        const fileColor = fileColors[fileIndex] || colorPalette[fileIndex % colorPalette.length];
+        if (!fileColors[fileIndex]) {
+            fileColors[fileIndex] = fileColor;
+        }
         
         // Crear contenedor de página
         const pageItem = document.createElement('div');
         pageItem.className = 'page-preview-item';
         pageItem.dataset.pageIndex = pageIndex;
+        pageItem.dataset.fileIndex = fileIndex;
         pageItem.draggable = true;
+        
+        // Aplicar color de borde según el archivo
+        pageItem.style.borderColor = fileColor;
+        pageItem.style.borderWidth = '3px';
         
         // Canvas para renderizar la página
         const canvas = document.createElement('canvas');
@@ -1122,10 +1205,20 @@ async function renderPage(pdf, pageNum, fileIndex) {
         controls.appendChild(rotateBtn);
         controls.appendChild(deleteBtn);
         
+        // Badge de archivo (arriba)
+        const fileBadge = document.createElement('div');
+        fileBadge.className = 'file-badge';
+        const fileNameShort = fileName ? (fileName.length > 20 ? fileName.substring(0, 20) + '...' : fileName) : `Archivo ${fileIndex + 1}`;
+        fileBadge.textContent = `📄 ${fileNameShort}`;
+        fileBadge.style.backgroundColor = fileColor;
+        fileBadge.style.color = 'white';
+        
         // Badge de número de página
         const pageBadge = document.createElement('div');
         pageBadge.className = 'page-number-badge';
-        pageBadge.textContent = `Página ${pageNum}`;
+        pageBadge.textContent = `Pág. ${pageNum}`;
+        pageBadge.style.backgroundColor = fileColor;
+        pageBadge.style.color = 'white';
         
         // Indicador de rotación
         const rotationIndicator = document.createElement('div');
@@ -1139,6 +1232,7 @@ async function renderPage(pdf, pageNum, fileIndex) {
         
         pageItem.appendChild(canvas);
         pageItem.appendChild(controls);
+        pageItem.appendChild(fileBadge);
         pageItem.appendChild(pageBadge);
         pageItem.appendChild(rotationIndicator);
         pageItem.appendChild(overlay);
