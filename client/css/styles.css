@@ -24,6 +24,7 @@ body {
     min-height: 100vh;
     padding: 20px;
     color: var(--text-primary);
+    scroll-behavior: smooth; /* Scroll suave en toda la página */
 }
 
 .container {
@@ -597,6 +598,16 @@ main {
     background: #f5f5f5;
 }
 
+.image-preview-img {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+    background: #f5f5f5;
+    object-fit: contain;
+    max-height: 300px;
+}
+
 .page-preview-overlay {
     position: absolute;
     top: 0;
@@ -745,8 +756,36 @@ main {
         font-size: 2rem;
     }
 
+    .subtitle {
+        font-size: 1rem;
+    }
+
     .tool-selector {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .tool-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .tool-btn {
+        padding: 15px 10px;
+        font-size: 0.85rem;
+    }
+
+    .tool-btn .icon {
+        font-size: 1.5rem;
+    }
+
+    .category-selector {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .category-btn {
+        padding: 10px 16px;
+        font-size: 0.85rem;
     }
 
     main {
@@ -770,6 +809,20 @@ main {
     .preview-actions {
         width: 100%;
         justify-content: flex-start;
+    }
+
+    .page-preview-item {
+        padding: 8px;
+    }
+
+    .page-preview-controls {
+        opacity: 1; /* Siempre visible en móvil */
+    }
+
+    .page-control-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 0.9rem;
     }
 }
 

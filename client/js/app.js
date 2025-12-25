@@ -145,19 +145,41 @@ function initializeToolButtons() {
                 });
             }
             
+            // Limpiar URLs de imágenes antes de resetear
+            pdfPages.forEach(page => {
+                if (page.isImage && page.imageUrl) {
+                    URL.revokeObjectURL(page.imageUrl);
+                }
+            });
+            
             files = [];
             fileOrder = [];
             pdfPages = [];
             pageRotations = {};
             deletedPages.clear();
             selectedPages.clear();
-            pdfDoc = null;
+            pdfDocs = {};
+            fileColors = {};
             pdfPreviewContainer.classList.add('hidden');
             pagesGrid.innerHTML = '';
             fileInput.value = ''; // Limpiar el input para permitir subir el mismo archivo de nuevo
             renderFilesList();
             updateToolOptions();
             resetUI();
+            
+            // En móvil, hacer scroll hacia el área de carga de archivos
+            if (window.innerWidth <= 768) {
+                setTimeout(() => {
+                    const headerOffset = 80; // Offset para el header
+                    const elementPosition = uploadPanel.getBoundingClientRect().top;
+                    const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                    
+                    window.scrollTo({
+                        top: offsetPosition,
+                        behavior: 'smooth'
+                    });
+                }, 150);
+            }
         });
     });
 }
@@ -208,18 +230,42 @@ async function addFiles(newFiles) {
         return isValid;
     });
 
+    const toolsWithPreview = ['merge', 'split', 'organize', 'delete-pages', 'extract-pages', 'rotate'];
+    const toolsWithImagePreview = ['images-to-pdf', 'scan-to-pdf', 'merge'];
+    let hasNewPDFs = false;
+    let hasNewImages = false;
+    
     for (const file of validFiles) {
         if (!files.find(f => f.name === file.name && f.size === file.size)) {
+            const fileIndex = files.length;
             files.push(file);
-            fileOrder.push(files.length - 1);
+            fileOrder.push(fileIndex);
             
-            // Si es un PDF y la herramienta lo requiere, renderizar vista previa
-            const toolsWithPreview = ['merge', 'split', 'organize', 'delete-pages', 'extract-pages', 'rotate'];
-            if ((file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) && 
-                toolsWithPreview.includes(currentTool)) {
-                await renderPDFPreview(file, files.length - 1);
+            const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+            const isImage = file.type.startsWith('image/') || 
+                           ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].some(ext => 
+                               file.name.toLowerCase().endsWith(ext));
+            
+            // Asignar color al archivo si es PDF o imagen
+            if ((isPDF && toolsWithPreview.includes(currentTool)) || 
+                (isImage && toolsWithImagePreview.includes(currentTool))) {
+                if (!fileColors[fileIndex]) {
+                    fileColors[fileIndex] = colorPalette[fileIndex % colorPalette.length];
+                }
+                if (isPDF) hasNewPDFs = true;
+                if (isImage) hasNewImages = true;
             }
         }
+    }
+
+    // Si hay PDFs y la herramienta lo requiere, renderizar vista previa de todos
+    if (hasNewPDFs && toolsWithPreview.includes(currentTool)) {
+        await renderAllPDFsPreview();
+    }
+    
+    // Si hay imágenes y la herramienta lo requiere, renderizar vista previa
+    if (hasNewImages && toolsWithImagePreview.includes(currentTool)) {
+        await renderAllImagesPreview();
     }
 
     renderFilesList();
@@ -282,12 +328,52 @@ function renderFilesList() {
     });
 }
 
-function removeFile(index) {
+async function removeFile(index) {
+    // Limpiar URLs de imágenes antes de eliminar
+    pdfPages.forEach(page => {
+        if (page.isImage && page.imageUrl) {
+            URL.revokeObjectURL(page.imageUrl);
+        }
+    });
+    
     files.splice(index, 1);
     fileOrder = fileOrder.filter(i => i !== index).map(i => i > index ? i - 1 : i);
     
-    // Limpiar vista previa si se elimina el PDF
-    if (pdfPages.length > 0 && pdfPages[0].fileIndex === index) {
+    // Limpiar datos del archivo eliminado
+    delete pdfDocs[index];
+    delete fileColors[index];
+    
+    // Re-renderizar vista previa si hay archivos restantes
+    const toolsWithPreview = ['merge', 'split', 'organize', 'delete-pages', 'extract-pages', 'rotate'];
+    const toolsWithImagePreview = ['images-to-pdf', 'scan-to-pdf', 'merge'];
+    
+    const remainingPDFs = files.filter((file, i) => 
+        (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) &&
+        toolsWithPreview.includes(currentTool)
+    );
+    
+    const remainingImages = files.filter((file, i) => {
+        const isImage = file.type.startsWith('image/') || 
+                       ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].some(ext => 
+                           file.name.toLowerCase().endsWith(ext));
+        return isImage && toolsWithImagePreview.includes(currentTool);
+    });
+    
+    if (remainingPDFs.length > 0 || remainingImages.length > 0) {
+        // Limpiar y re-renderizar
+        pagesGrid.innerHTML = '';
+        pdfPages = [];
+        pageRotations = {};
+        deletedPages.clear();
+        selectedPages.clear();
+        
+        if (remainingPDFs.length > 0) {
+            await renderAllPDFsPreview();
+        }
+        if (remainingImages.length > 0) {
+            await renderAllImagesPreview();
+        }
+    } else {
         pdfPreviewContainer.classList.add('hidden');
         pagesGrid.innerHTML = '';
         pdfPages = [];
@@ -1003,6 +1089,13 @@ function resetUI() {
 
 // Event listeners para botones
 document.getElementById('newProcessBtn').addEventListener('click', () => {
+    // Limpiar URLs de imágenes antes de resetear
+    pdfPages.forEach(page => {
+        if (page.isImage && page.imageUrl) {
+            URL.revokeObjectURL(page.imageUrl);
+        }
+    });
+    
     files = [];
     fileOrder = [];
     pdfPages = [];
@@ -1048,7 +1141,15 @@ async function renderAllPDFsPreview() {
                 toolsWithPreview.includes(currentTool)
             );
         
-        if (pdfFiles.length === 0) {
+        // Verificar si hay imágenes también
+        const hasImages = files.some(file => {
+            const isImage = file.type.startsWith('image/') || 
+                           ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].some(ext => 
+                               file.name.toLowerCase().endsWith(ext));
+            return isImage && ['images-to-pdf', 'scan-to-pdf', 'merge'].includes(currentTool);
+        });
+        
+        if (pdfFiles.length === 0 && !hasImages) {
             pdfPreviewContainer.classList.add('hidden');
             return;
         }
@@ -1125,6 +1226,186 @@ async function renderAllPDFsPreview() {
 // Renderizar vista previa de PDF (función legacy, mantener por compatibilidad)
 async function renderPDFPreview(file, fileIndex) {
     await renderAllPDFsPreview();
+}
+
+// Renderizar vista previa de TODAS las imágenes
+async function renderAllImagesPreview() {
+    try {
+        const toolsWithImagePreview = ['images-to-pdf', 'scan-to-pdf', 'merge'];
+        
+        // Obtener solo las imágenes
+        const imageFiles = files
+            .map((file, index) => ({ file, index }))
+            .filter(({ file }) => {
+                const isImage = file.type.startsWith('image/') || 
+                               ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].some(ext => 
+                                   file.name.toLowerCase().endsWith(ext));
+                return isImage && toolsWithImagePreview.includes(currentTool);
+            });
+        
+        if (imageFiles.length === 0) {
+            // Si no hay imágenes pero hay PDFs, no ocultar el contenedor
+            const hasPDFs = files.some(file => 
+                file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+            );
+            if (!hasPDFs) {
+                pdfPreviewContainer.classList.add('hidden');
+            }
+            return;
+        }
+        
+        // Verificar si hay PDFs también para no limpiar si ya hay contenido
+        const toolsWithPreview = ['merge', 'split', 'organize', 'delete-pages', 'extract-pages', 'rotate'];
+        const hasPDFs = files.some(file => {
+            const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+            return isPDF && toolsWithPreview.includes(currentTool);
+        });
+        
+        // Si hay PDFs, no limpiar, solo agregar imágenes
+        // Si solo hay imágenes y es la primera vez, limpiar
+        const currentImageCount = pdfPages.filter(p => p.isImage).length;
+        const shouldClear = currentImageCount === 0 && !hasPDFs;
+        
+        if (shouldClear) {
+            pagesGrid.innerHTML = '';
+            pdfPages = [];
+            pageRotations = {};
+            deletedPages.clear();
+            selectedPages.clear();
+        }
+        
+        // Mostrar contenedor de vista previa
+        pdfPreviewContainer.classList.remove('hidden');
+        
+        // Renderizar cada imagen (solo las nuevas)
+        for (const { file, index: fileIndex } of imageFiles) {
+            // Verificar si ya está renderizada
+            const alreadyRendered = pdfPages.some(p => p.fileIndex === fileIndex && p.isImage);
+            if (alreadyRendered) continue;
+            
+            await renderImagePreview(file, fileIndex);
+        }
+        
+        // Inicializar eventos de botones de acción global
+        initializePreviewActions();
+        
+    } catch (error) {
+        console.error('Error renderizando imágenes:', error);
+        showError('Error al cargar la vista previa de las imágenes: ' + error.message);
+    }
+}
+
+// Renderizar vista previa de una imagen individual
+async function renderImagePreview(file, fileIndex) {
+    try {
+        const imageIndex = pdfPages.length;
+        const fileColor = fileColors[fileIndex] || colorPalette[fileIndex % colorPalette.length];
+        if (!fileColors[fileIndex]) {
+            fileColors[fileIndex] = fileColor;
+        }
+        
+        // Crear objeto URL para la imagen
+        const imageUrl = URL.createObjectURL(file);
+        
+        // Guardar información de la imagen
+        pdfPages.push({ 
+            file, 
+            fileIndex, 
+            fileName: file.name,
+            imageUrl,
+            isImage: true,
+            pageNum: imageIndex + 1
+        });
+        
+        // Crear contenedor de imagen
+        const imageItem = document.createElement('div');
+        imageItem.className = 'page-preview-item';
+        imageItem.dataset.pageIndex = imageIndex;
+        imageItem.dataset.fileIndex = fileIndex;
+        imageItem.draggable = true;
+        
+        // Aplicar color de borde según el archivo
+        imageItem.style.borderColor = fileColor;
+        imageItem.style.borderWidth = '3px';
+        
+        // Crear imagen
+        const img = document.createElement('img');
+        img.className = 'image-preview-img';
+        img.src = imageUrl;
+        img.alt = file.name;
+        // La imagen se ajustará automáticamente con CSS
+        
+        // Controles de imagen
+        const controls = document.createElement('div');
+        controls.className = 'page-preview-controls';
+        
+        // Botón de selección
+        const selectBtn = document.createElement('button');
+        selectBtn.className = 'page-control-btn select';
+        selectBtn.innerHTML = '✓';
+        selectBtn.title = 'Seleccionar imagen';
+        selectBtn.onclick = (e) => {
+            e.stopPropagation();
+            togglePageSelection(imageIndex);
+        };
+        
+        // Botón de eliminar
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'page-control-btn delete';
+        deleteBtn.innerHTML = '✗';
+        deleteBtn.title = 'Eliminar imagen';
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation();
+            deletePage(imageIndex);
+        };
+        
+        controls.appendChild(selectBtn);
+        controls.appendChild(deleteBtn);
+        
+        // Badge de archivo (arriba)
+        const fileBadge = document.createElement('div');
+        fileBadge.className = 'file-badge';
+        const fileNameShort = file.name.length > 20 ? file.name.substring(0, 20) + '...' : file.name;
+        fileBadge.textContent = `🖼️ ${fileNameShort}`;
+        fileBadge.style.backgroundColor = fileColor;
+        fileBadge.style.color = 'white';
+        
+        // Badge de número de imagen
+        const imageBadge = document.createElement('div');
+        imageBadge.className = 'page-number-badge';
+        imageBadge.textContent = `Imagen ${imageIndex + 1}`;
+        imageBadge.style.backgroundColor = fileColor;
+        imageBadge.style.color = 'white';
+        
+        // Overlay para imágenes eliminadas
+        const overlay = document.createElement('div');
+        overlay.className = 'page-preview-overlay';
+        overlay.textContent = 'Eliminada';
+        
+        imageItem.appendChild(img);
+        imageItem.appendChild(controls);
+        imageItem.appendChild(fileBadge);
+        imageItem.appendChild(imageBadge);
+        imageItem.appendChild(overlay);
+        
+        // Eventos de drag and drop
+        imageItem.addEventListener('dragstart', handleDragStart);
+        imageItem.addEventListener('dragover', handleDragOver);
+        imageItem.addEventListener('drop', handleDrop);
+        imageItem.addEventListener('dragend', handleDragEnd);
+        
+        // Click para seleccionar
+        imageItem.addEventListener('click', (e) => {
+            if (e.target === imageItem || e.target === img) {
+                togglePageSelection(imageIndex);
+            }
+        });
+        
+        pagesGrid.appendChild(imageItem);
+        
+    } catch (error) {
+        console.error(`Error renderizando imagen ${file.name}:`, error);
+    }
 }
 
 // Renderizar una página individual
